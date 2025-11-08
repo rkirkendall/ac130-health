@@ -39,7 +39,7 @@ Add the Health Record MCP server to your `claude_desktop_config.json`:
 }
 ```
 
-**Important**: Replace `/Users/YOUR_USERNAME/path/to/ac130-2` with the actual absolute path to your project directory.
+**Important**: Replace `/Users/YOUR_USERNAME/path/to/health-record-mcp` with the actual absolute path to your project directory.
 
 ### Option B: Using TypeScript with tsx (Development)
 
