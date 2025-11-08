@@ -1,0 +1,42 @@
+name: health-record-mcp
+
+services:
+  mongodb:
+    image: mongo:7.0
+    container_name: health-record-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+      - mongodb_config:/data/configdb
+    environment:
+      - MONGO_INITDB_DATABASE=health_record
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017
+      - HEALTH_RECORD_DB_NAME=health_record
+    # Note: This service is run on-demand via 'docker compose run' for stdio transport
+    # It's not started with 'docker compose up' because MCP clients need to control the process
+    profiles:
+      - mcp
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_config:
+    driver: local
+
