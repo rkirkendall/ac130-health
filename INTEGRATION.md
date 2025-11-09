@@ -1,12 +1,12 @@
 # Claude Desktop Integration Guide
 
-This guide walks you through integrating the Health Record MCP Server with Claude Desktop.
+This guide walks you through integrating the AC130 Health MCP Server with Claude Desktop.
 
 ## Prerequisites
 
 1. Claude Desktop installed
 2. MongoDB running (local or Atlas)
-3. Health Record MCP Server built (`npm run build`)
+3. AC130 Health MCP Server built (`npm run build`)
 
 ## Step 1: Locate Claude Desktop Config File
 
@@ -18,21 +18,21 @@ The configuration file location depends on your operating system:
 
 ## Step 2: Edit Configuration
 
-Add the Health Record MCP server to your `claude_desktop_config.json`:
+Add the AC130 Health MCP server to your `claude_desktop_config.json`:
 
 ### Option A: Using Built JavaScript (Production)
 
 ```json
 {
   "mcpServers": {
-    "health-record-mcp": {
+    "ac130-health-mcp": {
       "command": "node",
       "args": [
-        "/Users/YOUR_USERNAME/path/to/health-record-mcp/dist/index.js"
+        "/Users/YOUR_USERNAME/path/to/ac130-health-mcp/dist/index.js"
       ],
       "env": {
         "MONGO_URI": "mongodb://localhost:27017",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     }
   }
@@ -55,7 +55,7 @@ Add the Health Record MCP server to your `claude_desktop_config.json`:
       ],
       "env": {
         "MONGO_URI": "mongodb://localhost:27017",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     }
   }
@@ -76,7 +76,7 @@ If you're using MongoDB Atlas instead of local MongoDB, update the `MONGO_URI`:
       ],
       "env": {
         "MONGO_URI": "mongodb+srv://username:password@cluster.mongodb.net/",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     }
   }
@@ -184,7 +184,7 @@ If you have other MCP servers, your config might look like:
       "args": ["/path/to/health-record-mcp/dist/index.js"],
       "env": {
         "MONGO_URI": "mongodb://localhost:27017",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     },
     "other-server": {

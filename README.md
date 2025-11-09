@@ -1,6 +1,6 @@
-# Health Record MCP Server
+# AC130 Health MCP Server
 
-A Model Context Protocol (MCP) server for managing longitudinal medical records. This server provides tools to create, update, and retrieve patient health information including visits, prescriptions, lab results, and treatments, with an automatically maintained active health summary.
+A Model Context Protocol (MCP) server for managing longitudinal medical records. AC130 Health provides tools to create, update, and retrieve patient health information including visits, prescriptions, lab results, and treatments, with an automatically maintained active health summary.
 
 ## Features
 
@@ -55,7 +55,7 @@ cp .env.example .env
 5. Configure your MongoDB connection in `.env`:
 ```
 MONGO_URI=mongodb://localhost:27017
-HEALTH_RECORD_DB_NAME=health_record
+AC130_HEALTH_DB_NAME=ac130_health
 ```
 
 6. Build the project:
@@ -100,7 +100,7 @@ Or manually add the following to your Claude Desktop configuration file:
       ],
       "env": {
         "MONGO_URI": "mongodb://localhost:27017",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     }
   }
@@ -116,7 +116,7 @@ Or manually add the following to your Claude Desktop configuration file:
       "args": ["/path/to/health-record-mcp/dist/index.js"],
       "env": {
         "MONGO_URI": "mongodb://localhost:27017",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     }
   }

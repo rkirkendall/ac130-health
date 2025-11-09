@@ -1,6 +1,6 @@
-# Docker Setup for Health Record MCP Server
+# Docker Setup for AC130 Health MCP Server
 
-This guide explains how to run the Health Record MCP server and MongoDB using Docker.
+This guide explains how to run the AC130 Health MCP server and MongoDB using Docker.
 
 ## Prerequisites
 
@@ -50,7 +50,7 @@ services:
   mcp-server:
     environment:
       - MONGO_URI=mongodb://mongodb:27017
-      - HEALTH_RECORD_DB_NAME=health_record  # Change database name
+      - AC130_HEALTH_DB_NAME=ac130_health  # Change database name
 ```
 
 ### MongoDB Port
@@ -93,7 +93,7 @@ npm run dev
       ],
       "env": {
         "MONGO_URI": "mongodb://localhost:27017",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     }
   }
@@ -132,10 +132,10 @@ docker compose up -d --build mcp-server
 
 ```bash
 # Access MongoDB shell
-docker exec -it health-record-mongodb mongosh health_record
+docker exec -it health-record-mongodb mongosh ac130_health
 
 # Backup database
-docker exec health-record-mongodb mongodump --out=/data/backup --db=health_record
+docker exec health-record-mongodb mongodump --out=/data/backup --db=ac130_health
 
 # View MongoDB logs
 docker compose logs mongodb
@@ -222,7 +222,7 @@ For production use, consider:
 1. **Use MongoDB Atlas** instead of local MongoDB:
    ```yaml
    environment:
-     - MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/health_record
+     - MONGO_URI=mongodb+srv://user:pass@cluster.mongodb.net/ac130_health
    ```
 
 2. **Add resource limits**:

@@ -26,7 +26,7 @@ export class Database {
 
   async connect(): Promise<void> {
     await this.client.connect();
-    const dbName = process.env.HEALTH_RECORD_DB_NAME || 'health_record';
+    const dbName = process.env.AC130_HEALTH_DB_NAME || 'ac130_health';
     this.db = this.client.db(dbName);
     console.error('Connected to MongoDB');
   }

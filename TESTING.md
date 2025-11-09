@@ -1,12 +1,12 @@
-# Testing Health Record MCP Server
+# Testing AC130 Health MCP Server
 
-This document describes how to test the Health Record MCP Server using the MCP Inspector and other methods.
+This document describes how to test the AC130 Health MCP Server using the MCP Inspector and other methods.
 
 ## Prerequisites
 
 - Node.js 18+
 - MongoDB running
-- Health Record MCP Server built (`npm run build`)
+- AC130 Health MCP Server built (`npm run build`)
 
 ## Method 1: MCP Inspector (Recommended)
 
@@ -16,7 +16,7 @@ The MCP Inspector provides a web-based UI for testing MCP servers.
 
 ```bash
 # Navigate to your project
-cd /path/to/health-record-mcp
+cd /path/to/ac130-health-mcp
 
 # Run the inspector
 npx @modelcontextprotocol/inspector node dist/index.js
@@ -25,7 +25,7 @@ npx @modelcontextprotocol/inspector node dist/index.js
 This will:
 1. Start the MCP Inspector web interface
 2. Open your browser to `http://localhost:6274` (or similar)
-3. Connect to your Health Record MCP Server
+3. Connect to your AC130 Health MCP Server
 
 ### What You Can Test
 

@@ -23,7 +23,7 @@ import { getCreateSchemaJson, getUpdateSchemaJson, getListSchemaJson } from './s
 dotenv.config();
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
-const DB_NAME = process.env.HEALTH_RECORD_DB_NAME || 'health_record';
+const DB_NAME = process.env.AC130_HEALTH_DB_NAME || 'health_record';
 
 const server = new Server(
   {

@@ -1,9 +1,9 @@
-name: health-record-mcp
+name: ac130-health
 
 services:
   mongodb:
     image: mongo:7.0
-    container_name: health-record-mongodb
+    container_name: ac130-health-mongodb
     restart: unless-stopped
     ports:
       - "27017:27017"
@@ -11,7 +11,7 @@ services:
       - mongodb_data:/data/db
       - mongodb_config:/data/configdb
     environment:
-      - MONGO_INITDB_DATABASE=health_record
+      - MONGO_INITDB_DATABASE=ac130_health
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -28,7 +28,7 @@ services:
         condition: service_healthy
     environment:
       - MONGO_URI=mongodb://mongodb:27017
-      - HEALTH_RECORD_DB_NAME=health_record
+      - AC130_HEALTH_DB_NAME=ac130_health
     # Note: This service is run on-demand via 'docker compose run' for stdio transport
     # It's not started with 'docker compose up' because MCP clients need to control the process
     profiles:
@@ -38,7 +38,7 @@ services:
     build:
       context: ./webapp
       dockerfile: Dockerfile
-    container_name: health-record-webapp
+    container_name: ac130-health-webapp
     restart: unless-stopped
     depends_on:
       mongodb:

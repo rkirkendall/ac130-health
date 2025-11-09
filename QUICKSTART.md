@@ -1,6 +1,6 @@
-# Health Record MCP Server - Quick Start Guide
+# AC130 Health MCP Server - Quick Start Guide
 
-Get up and running with the Health Record MCP Server in 5 minutes.
+Get up and running with the AC130 Health MCP Server in 5 minutes.
 
 ## Prerequisites
 
@@ -55,7 +55,7 @@ cp .env.example .env
 Edit `.env` if needed (defaults work for local MongoDB):
 ```
 MONGO_URI=mongodb://localhost:27017
-HEALTH_RECORD_DB_NAME=health_record
+AC130_HEALTH_DB_NAME=ac130_health
 ```
 
 ### 3. Start MongoDB
@@ -107,7 +107,7 @@ Add this configuration (replace `YOUR_USERNAME` with your actual path):
       ],
       "env": {
         "MONGO_URI": "mongodb://localhost:27017",
-        "HEALTH_RECORD_DB_NAME": "health_record"
+        "AC130_HEALTH_DB_NAME": "ac130_health"
       }
     }
   }
@@ -142,7 +142,7 @@ Claude should use the `create_patient` tool and create a record in your MongoDB 
 Connect to MongoDB to see the records:
 
 ```bash
-mongosh mongodb://localhost:27017/health_record
+mongosh mongodb://localhost:27017/ac130_health
 
 # List all patients
 db.patients.find().pretty()
