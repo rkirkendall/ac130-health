@@ -13,7 +13,7 @@ This guide explains how to run the AC130 Health MCP server and MongoDB using Doc
 ### 1. Start All Services
 
 ```bash
-# Start MongoDB and MCP server
+# Start MongoDB and the web app
 docker compose up -d
 
 # View logs
@@ -23,7 +23,7 @@ docker compose logs -f
 This will:
 - Start MongoDB on port 27017
 - Create a persistent volume for MongoDB data
-- Build and start the MCP server
+- Build and start the web app at http://localhost:3001
 - Create database indexes automatically
 
 ### 2. Stop All Services
@@ -73,8 +73,8 @@ services:
 Run **MongoDB in Docker** (for easy management) and the **MCP server locally**:
 
 ```bash
-# 1. Start only MongoDB
-docker compose up -d mongodb
+# 1. Start MongoDB (and optionally the web app UI)
+docker compose up -d mongodb webapp
 
 # 2. In another terminal, run MCP server locally
 npm run dev
@@ -86,7 +86,7 @@ npm run dev
 {
   "mcpServers": {
     "health-record-mcp": {
-      "command": "/Users/YOUR_USERNAME/.nvm/versions/node/v24.5.0/bin/node",
+      "command": "node",
       "args": [
         "/path/to/health-record-mcp/node_modules/.bin/tsx",
         "/path/to/health-record-mcp/src/index.ts"
@@ -99,6 +99,8 @@ npm run dev
   }
 }
 ```
+
+If you prefer an absolute path, use the output from `which node` or `nvm which default`.
 
 ## Docker Commands Reference
 
@@ -256,12 +258,12 @@ For production use, consider:
 
 ### Recommended Setup
 
-1. Use Docker for MongoDB (consistent, isolated)
+1. Use Docker for MongoDB (and optionally the web UI) for consistency
 2. Run MCP server locally (easier debugging, fast iteration)
 
 ```bash
-# Terminal 1: Start MongoDB
-docker compose up -d mongodb
+# Terminal 1: Start MongoDB (and the web app if needed)
+docker compose up -d mongodb webapp
 
 # Terminal 2: Watch TypeScript compilation
 npm run watch

@@ -1,23 +1,23 @@
-import { ObjectId } from 'mongodb';
 import { Database } from '../db.js';
 import { UpdateHealthSummarySchema } from '../types.js';
 
 export async function updateHealthSummary(db: Database, args: unknown) {
   const validated = UpdateHealthSummarySchema.parse(args);
-  
-  if (!ObjectId.isValid(validated.patient_id)) {
+  const persistence = db.getResourcePersistence('active_summaries');
+
+  if (!persistence.validateId(validated.patient_id)) {
     throw new Error('Invalid patient_id');
   }
   
-  const result = await db.activeSummaries.findOneAndUpdate(
-    { patient_id: new ObjectId(validated.patient_id) },
+  const result = await persistence.updateOne(
+    { patient_id: validated.patient_id },
     {
-      $set: {
+      set: {
         summary_text: validated.summary_text,
         updated_at: new Date(),
       },
-      $setOnInsert: {
-        patient_id: new ObjectId(validated.patient_id),
+      setOnInsert: {
+        patient_id: validated.patient_id,
       },
     },
     {
@@ -41,18 +41,25 @@ export async function updateHealthSummary(db: Database, args: unknown) {
 }
 
 export async function getHealthSummary(db: Database, patientId: string): Promise<string> {
-  if (!ObjectId.isValid(patientId)) {
+  const persistence = db.getResourcePersistence('active_summaries');
+
+  if (!persistence.validateId(patientId)) {
     return 'Invalid patient_id provided.';
   }
   
-  const summary = await db.activeSummaries.findOne({
-    patient_id: new ObjectId(patientId),
+  const summary = await persistence.findOne({
+    patient_id: patientId,
   });
   
   if (!summary) {
     return 'No active health summary available yet. Use update_health_summary to create one.';
   }
   
-  return summary.summary_text;
+  const summaryText = summary.summary_text;
+  if (typeof summaryText !== 'string') {
+    return 'Active health summary exists but the stored summary_text is not a string.';
+  }
+
+  return summaryText;
 }
 

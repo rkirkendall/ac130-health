@@ -23,14 +23,20 @@ A Model Context Protocol (MCP) server for managing longitudinal medical records.
 
 1. Clone or download this repository
 
-2. Start MongoDB with Docker:
+2. Start MongoDB and the web app with Docker:
 ```bash
-docker compose up -d mongodb
+docker compose up -d mongodb webapp
 ```
 
-3. Run the MCP server locally:
+   This builds the web app image on first run, starts MongoDB on port 27017, and serves the UI at [http://localhost:3001](http://localhost:3001). You can also run `docker compose up -d` to start all default services at once.
+
+3. Install dependencies:
 ```bash
 npm install
+```
+
+4. Run the MCP server locally:
+```bash
 npm run dev
 ```
 
@@ -93,7 +99,7 @@ Or manually add the following to your Claude Desktop configuration file:
 {
   "mcpServers": {
     "health-record-mcp": {
-      "command": "/path/to/your/.nvm/versions/node/v24.5.0/bin/node",
+      "command": "node",
       "args": [
         "/path/to/health-record-mcp/node_modules/.bin/tsx",
         "/path/to/health-record-mcp/src/index.ts"

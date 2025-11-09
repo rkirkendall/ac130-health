@@ -23,16 +23,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    command: ["sleep", "infinity"]
     depends_on:
       mongodb:
         condition: service_healthy
     environment:
       - MONGO_URI=mongodb://mongodb:27017
       - AC130_HEALTH_DB_NAME=ac130_health
-    # Note: This service is run on-demand via 'docker compose run' for stdio transport
-    # It's not started with 'docker compose up' because MCP clients need to control the process
-    profiles:
-      - mcp
+    stdin_open: true
+    tty: true
 
   webapp:
     build:

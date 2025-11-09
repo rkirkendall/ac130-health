@@ -15,10 +15,13 @@ import type {
   Insurance,
   ActiveSummary,
 } from './types.js';
+import { MongoPersistenceAdapter } from './persistence/mongo-persistence.js';
+import type { ResourcePersistence } from './persistence/types.js';
 
 export class Database {
   private client: MongoClient;
   private db: Db | null = null;
+  private persistenceAdapter: MongoPersistenceAdapter | null = null;
 
   constructor(uri: string, dbName: string) {
     this.client = new MongoClient(uri);
@@ -28,6 +31,7 @@ export class Database {
     await this.client.connect();
     const dbName = process.env.AC130_HEALTH_DB_NAME || 'ac130_health';
     this.db = this.client.db(dbName);
+    this.persistenceAdapter = new MongoPersistenceAdapter(this.db);
     console.error('Connected to MongoDB');
   }
 
@@ -40,6 +44,17 @@ export class Database {
       throw new Error('Database not connected');
     }
     return this.db;
+  }
+
+  private getPersistenceAdapter(): MongoPersistenceAdapter {
+    if (!this.persistenceAdapter) {
+      throw new Error('Database not connected');
+    }
+    return this.persistenceAdapter;
+  }
+
+  getResourcePersistence(collectionName: string): ResourcePersistence {
+    return this.getPersistenceAdapter().forCollection(collectionName);
   }
 
   get patients(): Collection<Patient> {
