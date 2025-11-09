@@ -34,6 +34,21 @@ services:
     profiles:
       - mcp
 
+  webapp:
+    build:
+      context: ./webapp
+      dockerfile: Dockerfile
+    container_name: health-record-webapp
+    restart: unless-stopped
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "3001:3000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017
+      - NODE_ENV=production
+
 volumes:
   mongodb_data:
     driver: local
