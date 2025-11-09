@@ -85,7 +85,7 @@ export default function Home() {
       {/* Header with Patient Selector */}
       <header className="border-b bg-background">
         <div className="flex items-center p-4 gap-4">
-          <img src="/ac-130-logo.png" alt="AC130 Health" className="h-10 w-10" />
+          <img src="/ac-130-logo.png" alt="AC130 Health" className="h-10 w-10 border border-black rounded" />
           <h1 className="text-xl font-bold">Health Records</h1>
           <div className="w-64 ml-auto">
             <Select value={selectedPatient} onValueChange={setSelectedPatient}>
