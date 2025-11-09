@@ -1,0 +1,58 @@
+---
+alwaysApply: true
+---
+
+# MongoDB ObjectId Cheat Sheet
+
+Keep the full pipeline aligned: MongoDB stores `ObjectId` values, external APIs speak strings, and the code in between must convert deliberately.
+
+## Non-Negotiables
+
+- **Database**: Every ID field saved to MongoDB (e.g. `_id`, `patient_id`, `provider_id`) must be an `ObjectId`, never a string.
+- **API boundary**: Anything entering or leaving MCP tools must expose IDs as strings.
+- **Conversion**: Tool handlers convert strings → `ObjectId` before writes; the persistence layer converts known filter fields → `ObjectId` for reads and stringifies only `_id`/primary aliases on return.
+- **List schemas**: If a resource supports filtered listing, it must declare a `listSchema` that includes every ID filter. No schema, no guarantees.
+
+## Layer Responsibilities
+
+- **Zod schemas (`src/types.ts`)**  
+  Declare all input IDs as strings and provide a list schema for filters (`patient_id`, `provider_id`, etc.).
+
+- **Resource registry (`src/resource-registry.ts`)**  
+  Register the create/update/get/list schemas so generic CRUD handlers can validate and convert consistently.
+
+- **Persistence (`src/persistence/mongo-persistence.ts`)**  
+  Update `OBJECT_ID_FIELDS` whenever a new ID field appears. `normalizeFilter()` converts those fields before querying. `toExternal()` only stringifies `_id` and the resource’s primary alias—convert reference IDs yourself if callers need strings.
+
+- **Tool handlers (`src/tools/...`)**  
+  Before insert/update, wrap incoming string IDs with `new ObjectId(...)`. When returning data that includes reference IDs, convert them back to strings if the caller expects it.
+
+## Implementation Checklist
+
+1. Define create/update/list schemas with string IDs.
+2. Register the schemas in the resource registry.
+3. Add any new ID field names to `OBJECT_ID_FIELDS`.
+4. Convert IDs in the tool handler before database writes.
+5. Decide which reference IDs need to be returned as strings and serialize them explicitly.
+
+## Troubleshooting Quick Checks
+
+1. Missing data on filtered list? Confirm the resource has a `listSchema`.
+2. Filters still fail? Ensure the ID field exists in `OBJECT_ID_FIELDS`.
+3. Getting zero results? Verify the ID string is a valid 24-char hex `ObjectId`.
+4. Seeing raw `ObjectId("...")` in responses? Convert reference IDs to strings before returning.
+5. Data stored incorrectly? Inspect MongoDB directly (`$type: "objectId"`) to confirm fields were saved as `ObjectId`.
+
+## Test Both Paths
+
+```typescript
+await listResource(db, { resource_type: "condition", filters: {} });
+await listResource(db, { resource_type: "condition", filters: { patient_id } });
+```
+
+If the unfiltered call works but the filtered one fails, revisit the checklist above.
+
+## One-Line Reminder
+
+**Strings at the boundary, ObjectIds in MongoDB, explicit conversion in between.**
+

@@ -6,6 +6,60 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import type { Patient, RecordCount } from '@/lib/types';
 
+const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  year: '2-digit',
+  month: 'numeric',
+  day: 'numeric',
+});
+
+const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?$/;
+
+const isLikelyDateKey = (key: string) => {
+  const lower = key.toLowerCase();
+  return lower.includes('date') || lower.endsWith('_at');
+};
+
+const formatDateValue = (value: unknown): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value as string | number);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return DATE_FORMATTER.format(date);
+};
+
+const formatFieldValue = (key: string, value: unknown): string => {
+  if (value === null || value === undefined) {
+    return 'N/A';
+  }
+
+  if (value instanceof Date) {
+    return formatDateValue(value) ?? value.toISOString();
+  }
+
+  if (typeof value === 'object') {
+    return JSON.stringify(value, null, 2);
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed) {
+      const formatted = formatDateValue(trimmed);
+      if (formatted && (ISO_DATE_REGEX.test(trimmed) || isLikelyDateKey(key))) {
+        return formatted;
+      }
+    }
+    return value;
+  }
+
+  return String(value);
+};
+
 export default function Home() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<string>('');
@@ -158,7 +212,9 @@ export default function Home() {
                       <CardHeader>
                         <CardTitle className="text-lg">Health Summary</CardTitle>
                         <p className="text-sm text-muted-foreground">
-                          Last updated: {new Date(record.updated_at).toLocaleString()}
+                          Last updated:{' '}
+                          {formatDateValue(record.updated_at) ??
+                            (record.updated_at ? String(record.updated_at) : 'N/A')}
                         </p>
                       </CardHeader>
                       <CardContent>
@@ -178,7 +234,9 @@ export default function Home() {
                       <CardHeader>
                         <CardTitle className="text-lg">{record.test_name}</CardTitle>
                         <div className="flex gap-4 text-sm text-muted-foreground">
-                          {record.result_date && <span>Date: {record.result_date}</span>}
+                          {record.result_date && (
+                            <span>Date: {formatFieldValue('result_date', record.result_date)}</span>
+                          )}
                           {record.status && <span>Status: {record.status}</span>}
                         </div>
                       </CardHeader>
@@ -273,16 +331,8 @@ export default function Home() {
                             if (key === '_id' || key === 'patient_id' || key === 'created_by' || key === 'updated_by') {
                               return null;
                             }
-                            
-                            // Format the value
-                            let displayValue: string;
-                            if (typeof value === 'object' && value !== null) {
-                              displayValue = JSON.stringify(value, null, 2);
-                            } else if (value === null || value === undefined) {
-                              displayValue = 'N/A';
-                            } else {
-                              displayValue = String(value);
-                            }
+
+                            const displayValue = formatFieldValue(key, value);
 
                             return (
                               <div key={key} className="space-y-1">

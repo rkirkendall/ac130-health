@@ -1,0 +1,39 @@
+---
+alwaysApply: true
+---
+
+# MCP Runtime Refresh Guide
+
+Use this checklist whenever you make a change that affects what the MCP server serves (prompt text, business logic, dependencies, configuration). The key question: **Will the running MCP Node process or Docker image see the change without a restart?** If not, follow the refresh steps below.
+
+## When a restart/rebuild is required
+
+Trigger a restart (and rebuild if noted) when you:
+
+- Update prompt text or other generated assets (`src/prompts.ts`, anything that emits `dist/prompts.js`).
+- Change TypeScript source that compiles into `dist/`.
+- Add/remove npm dependencies or adjust build tooling.
+- Modify environment variables or configuration injected at process start.
+- Touch Dockerfile or scripts that bake the container image.
+
+Simple data edits (e.g., MongoDB content) do not need a restart.
+
+## Fast local iteration
+
+1. Run `npm install` once if dependencies change.
+2. Start the MCP server with `npm run dev`. The `tsx` watcher recompiles on file save, so only restart if the process crashes.
+3. After changes that affect runtime behaviour (prompts, logic, config), stop and restart the dev server so the fresh code loads.
+4. Point Claude at the local MCP endpoint and retry your request.
+
+## Docker workflow
+
+1. Rebuild TypeScript artifacts: `npm run build` (ensures `dist/` matches the source).
+2. Rebuild the image so the container includes the new `dist/` and dependencies: `docker compose build mcp-server`.
+3. Restart the container to apply the new image: `docker compose up -d --force-recreate mcp-server`.
+4. Re-run `./scripts/run-mcp-docker.sh` (or your wrapper) to exec into the updated container.
+5. Reopen the Claude session to ensure it connects to the refreshed MCP instance.
+
+## Quick sanity check
+
+- Verify `git status` shows both `src/prompts.ts` and `dist/prompts.js` updated or rebuilt.
+- If behaviour still reflects old code, confirm you restarted the correct process/container and that no other MCP instance is registered in Claude.
