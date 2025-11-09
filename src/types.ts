@@ -76,7 +76,16 @@ export interface Lab {
     unit?: string;
     reference_range?: string;
   }>;
+  results?: Array<{
+    test: string;
+    flag?: string;
+    value?: string | number;
+    unit?: string;
+    reference_range?: string;
+  }>;
   collected_at?: Date;
+  order_date?: string;
+  result_date?: string;
   ordered_by?: ObjectId;
   status?: 'pending' | 'final' | 'corrected';
   created_at: Date;
@@ -385,7 +394,16 @@ const LabDataSchema = z.object({
     unit: z.string().optional(),
     reference_range: z.string().optional(),
   })).optional(),
+  results: z.array(z.object({
+    test: z.string(),
+    flag: z.string().optional(),
+    value: z.union([z.string(), z.number()]).optional(),
+    unit: z.string().optional(),
+    reference_range: z.string().optional(),
+  })).optional(),
   collected_at: z.string().optional(),
+  order_date: z.string().optional(),
+  result_date: z.string().optional(),
   ordered_by: z.string().optional(),
   status: z.enum(['pending', 'final', 'corrected']).optional(),
 });
@@ -404,7 +422,16 @@ export const UpdateLabSchema = z.object({
     unit: z.string().optional(),
     reference_range: z.string().optional(),
   })).optional(),
+  results: z.array(z.object({
+    test: z.string(),
+    flag: z.string().optional(),
+    value: z.union([z.string(), z.number()]).optional(),
+    unit: z.string().optional(),
+    reference_range: z.string().optional(),
+  })).optional(),
   collected_at: z.string().optional(),
+  order_date: z.string().optional(),
+  result_date: z.string().optional(),
   ordered_by: z.string().optional(),
   status: z.enum(['pending', 'final', 'corrected']).optional(),
 });

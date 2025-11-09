@@ -11,6 +11,42 @@ export async function createLab(db: Database, args: unknown) {
   
   const now = new Date();
 
+  // Helper function to transform results to components and handle dates
+  const transformLabData = (l: any) => {
+    // Transform results to components if results provided but components not
+    let components = l.components;
+    if (l.results && !components) {
+      components = l.results.map((r: any) => ({
+        name: r.test,
+        value: r.value,
+        unit: r.unit,
+        reference_range: r.reference_range,
+      }));
+    }
+
+    // Determine collected_at from various date fields
+    let collectedAt: Date | undefined;
+    if (l.collected_at) {
+      collectedAt = new Date(l.collected_at);
+    } else if (l.result_date) {
+      collectedAt = new Date(l.result_date);
+    } else if (l.order_date) {
+      collectedAt = new Date(l.order_date);
+    }
+
+    return {
+      ...l,
+      components,
+      patient_id: new ObjectId(l.patient_id),
+      ordered_by: l.ordered_by ? new ObjectId(l.ordered_by) : undefined,
+      collected_at: collectedAt,
+      created_at: now,
+      updated_at: now,
+      created_by: 'mcp',
+      updated_by: 'mcp',
+    };
+  };
+
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const labs = validated.map(l => {
@@ -21,16 +57,7 @@ export async function createLab(db: Database, args: unknown) {
         throw new Error(`Invalid ordered_by provider_id: ${l.ordered_by}`);
       }
 
-      return {
-        ...l,
-        patient_id: new ObjectId(l.patient_id),
-        ordered_by: l.ordered_by ? new ObjectId(l.ordered_by) : undefined,
-        collected_at: l.collected_at ? new Date(l.collected_at) : undefined,
-        created_at: now,
-        updated_at: now,
-        created_by: 'mcp',
-        updated_by: 'mcp',
-      };
+      return transformLabData(l);
     });
 
     const result = await db.labs.insertMany(labs as any);
@@ -65,16 +92,7 @@ export async function createLab(db: Database, args: unknown) {
     throw new Error('Invalid ordered_by provider_id');
   }
   
-  const lab = {
-    ...validated,
-    patient_id: new ObjectId(validated.patient_id),
-    ordered_by: validated.ordered_by ? new ObjectId(validated.ordered_by) : undefined,
-    collected_at: validated.collected_at ? new Date(validated.collected_at) : undefined,
-    created_at: now,
-    updated_at: now,
-    created_by: 'mcp',
-    updated_by: 'mcp',
-  };
+  const lab = transformLabData(validated);
   
   const result = await db.labs.insertOne(lab as any);
   const inserted = await db.labs.findOne({ _id: result.insertedId });

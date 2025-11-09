@@ -18,6 +18,7 @@ import { CARE_MANAGER_BASE_PROMPT } from './prompts.js';
 import { createResource, getResource, updateResource, deleteResource, listResource } from './tools/crud.js';
 import { updateHealthSummary, getHealthSummary } from './tools/summary.js';
 import { getAllResourceTypes, RESOURCE_REGISTRY } from './resource-registry.js';
+import { getCreateSchemaJson, getUpdateSchemaJson, getListSchemaJson } from './schema-utils.js';
 
 dotenv.config();
 
@@ -53,7 +54,47 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'create_resource',
-        description: `Create one or more resource records. Supports batch creation for resources that support it. Available resource types:\n${resourceTypeDescriptions}`,
+        description: `Create one or more resource records. Supports batch creation for resources that support it. Available resource types:\n${resourceTypeDescriptions}\n\nIMPORTANT: Read the schema resource at 'schema://{resource_type}/create' to see the exact fields and structure required.
+
+USAGE PATTERNS:
+
+1. Single Record Creation:
+   Use "data" as an object: { "patient_id": "123...", "test_name": "CBC", ... }
+
+2. Batch Creation (Multiple Records):
+   Use "data" as an array: [{ "patient_id": "123...", "test_name": "CBC", ... }, { "patient_id": "123...", "test_name": "BMP", ... }]
+
+EXAMPLE - Create Single Lab:
+  {
+    "resource_type": "lab",
+    "data": {
+      "patient_id": "507f1f77bcf86cd799439011",
+      "test_name": "Complete Blood Count",
+      "results": [
+        { "test": "WBC", "value": 7.5, "unit": "K/uL", "reference_range": "4.0-11.0" },
+        { "test": "RBC", "value": 5.2, "unit": "M/uL", "reference_range": "4.5-5.9" }
+      ],
+      "result_date": "2024-01-15",
+      "status": "final"
+    }
+  }
+
+EXAMPLE - Batch Create Labs:
+  {
+    "resource_type": "lab",
+    "data": [
+      {
+        "patient_id": "507f1f77bcf86cd799439011",
+        "test_name": "CBC",
+        "results": [{ "test": "WBC", "value": 7.5, "unit": "K/uL" }]
+      },
+      {
+        "patient_id": "507f1f77bcf86cd799439011",
+        "test_name": "BMP",
+        "results": [{ "test": "Sodium", "value": 140, "unit": "mEq/L" }]
+      }
+    ]
+  }`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -63,8 +104,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               description: 'The type of resource to create',
             },
             data: {
-              type: ['object', 'array'],
-              description: 'The resource data (single object or array for batch creation). Structure depends on resource_type.',
+              description: 'The resource data. Can be a single object or an array of objects for batch creation. Structure depends on resource_type. Read schema://{resource_type}/create for exact schema.',
             },
           },
           required: ['resource_type', 'data'],
@@ -91,7 +131,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'update_resource',
-        description: `Update an existing resource record. Available resource types:\n${resourceTypeDescriptions}`,
+        description: `Update an existing resource record. Available resource types:\n${resourceTypeDescriptions}\n\nIMPORTANT: Before updating a resource, read the schema resource at 'schema://{resource_type}/update' to see the exact fields available for update.`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -106,7 +146,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             data: {
               type: 'object',
-              description: 'The fields to update. Structure depends on resource_type.',
+              description: 'The fields to update. Structure depends on resource_type. Read schema://{resource_type}/update for exact schema.',
             },
           },
           required: ['resource_type', 'id', 'data'],
@@ -133,7 +173,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: 'list_resource',
-        description: `List resource records with optional filters. Available resource types:\n${resourceTypeDescriptions}`,
+        description: `List resource records with optional filters. Available resource types:\n${resourceTypeDescriptions}\n\nIMPORTANT: Before listing a resource, read the schema resource at 'schema://{resource_type}/list' to see available filter fields.`,
         inputSchema: {
           type: 'object',
           properties: {
@@ -144,7 +184,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             filters: {
               type: 'object',
-              description: 'Optional filters to apply. Structure depends on resource_type. For patients, can filter by relationship.',
+              description: 'Optional filters to apply. Structure depends on resource_type. Read schema://{resource_type}/list for available filter fields.',
             },
             limit: {
               type: 'number',
@@ -235,6 +275,31 @@ server.setRequestHandler(GetPromptRequestSchema, async (request) => {
 
 // List available resources
 server.setRequestHandler(ListResourcesRequestSchema, async () => {
+  const resourceTypes = getAllResourceTypes();
+  const schemaResources = resourceTypes.flatMap(type => {
+    const def = RESOURCE_REGISTRY[type];
+    return [
+      {
+        uri: `schema://${type}/create`,
+        name: `${type} Create Schema`,
+        description: `JSON Schema for creating ${def.description}`,
+        mimeType: 'application/json',
+      },
+      {
+        uri: `schema://${type}/update`,
+        name: `${type} Update Schema`,
+        description: `JSON Schema for updating ${def.description}`,
+        mimeType: 'application/json',
+      },
+      {
+        uri: `schema://${type}/list`,
+        name: `${type} List Schema`,
+        description: `JSON Schema for filtering/listing ${def.description}`,
+        mimeType: 'application/json',
+      },
+    ];
+  });
+
   return {
     resources: [
       {
@@ -243,6 +308,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
         description: 'Current health summary for a patient',
         mimeType: 'text/plain',
       },
+      ...schemaResources,
     ],
   };
 });
@@ -266,7 +332,52 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     };
   }
   
-  throw new Error(`Unknown resource: ${uri}`);
+  // Handle schema resources
+  if (uri.startsWith('schema://')) {
+    try {
+      const match = uri.match(/^schema:\/\/([^/]+)\/(create|update|list)$/);
+      if (match) {
+        const [, resourceType, schemaType] = match;
+        const def = RESOURCE_REGISTRY[resourceType as keyof typeof RESOURCE_REGISTRY];
+        
+        if (!def) {
+          throw new Error(`Unknown resource type: ${resourceType}. Available types: ${getAllResourceTypes().join(', ')}`);
+        }
+        
+        let schemaJson: any;
+        try {
+          if (schemaType === 'create') {
+            schemaJson = getCreateSchemaJson(resourceType, def.createSchema);
+          } else if (schemaType === 'update') {
+            schemaJson = getUpdateSchemaJson(resourceType, def.updateSchema, def.idField);
+          } else if (schemaType === 'list') {
+            schemaJson = getListSchemaJson(resourceType, def.listSchema);
+          } else {
+            throw new Error(`Unknown schema type: ${schemaType}. Must be one of: create, update, list`);
+          }
+        } catch (schemaError: any) {
+          throw new Error(`Failed to generate schema for ${resourceType}/${schemaType}: ${schemaError.message}`);
+        }
+        
+        return {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(schemaJson, null, 2),
+            },
+          ],
+        };
+      } else {
+        throw new Error(`Invalid schema URI format. Expected: schema://{resource_type}/{create|update|list}. Got: ${uri}`);
+      }
+    } catch (error: any) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      throw new Error(`Error reading schema resource ${uri}: ${errorMessage}`);
+    }
+  }
+  
+  throw new Error(`Unknown resource: ${uri}. Available resources include schema://{resource_type}/create, schema://{resource_type}/update, schema://{resource_type}/list, and summary://patient/{patient_id}`);
 });
 
 async function main() {
