@@ -1,3 +1,4 @@
+import { ObjectId } from 'mongodb';
 import { Database } from '../db.js';
 import { getResourceDefinition, getAllResourceTypes } from '../resource-registry.js';
 import { z } from 'zod';
@@ -271,7 +272,7 @@ export async function createResource(db: Database, args: unknown) {
     }
     throw error;
   }
-  const persistence = db.getResourcePersistence(resourceDef.collectionName);
+  const collection = resourceDef.getCollection(db);
   const now = new Date();
 
   // Handle batch creation
@@ -288,18 +289,21 @@ export async function createResource(db: Database, args: unknown) {
       updated_by: 'mcp',
     }));
 
-    const insertedRecords = await persistence.createMany(records);
-    const formatted = insertedRecords.map((record) =>
-      persistence.toExternal(record, resourceDef.idField)
-    );
+    const result = await collection.insertMany(records);
+    const insertedIds = Object.values(result.insertedIds);
+    const inserted = await collection.find({ _id: { $in: insertedIds } }).toArray();
 
     return {
       content: [
         {
           type: 'text',
           text: JSON.stringify({
-            count: formatted.length,
-            [resourceDef.collectionName]: formatted,
+            count: inserted.length,
+            [resourceDef.collectionName]: inserted.map((item: any) => ({
+              ...item,
+              _id: item._id.toString(),
+              [resourceDef.idField]: item._id.toString(),
+            })),
           }, null, 2),
         },
       ],
@@ -315,15 +319,17 @@ export async function createResource(db: Database, args: unknown) {
     updated_by: 'mcp',
   };
 
-  const inserted = await persistence.create(record);
-  const formatted = persistence.toExternal(inserted, resourceDef.idField);
+  const result = await collection.insertOne(record);
+  const inserted = await collection.findOne({ _id: result.insertedId });
 
   return {
     content: [
       {
         type: 'text',
         text: JSON.stringify({
-          ...formatted,
+          [resourceDef.idField]: result.insertedId.toString(),
+          ...inserted,
+          _id: inserted?._id.toString(),
         }, null, 2),
       },
     ],
@@ -339,26 +345,25 @@ export async function getResource(db: Database, args: unknown) {
     throw new Error(`Unknown resource type: ${resource_type}`);
   }
 
-  const persistence = db.getResourcePersistence(resourceDef.collectionName);
-
-  if (!persistence.validateId(id)) {
+  if (!ObjectId.isValid(id)) {
     throw new Error(`Invalid ${resourceDef.idField}`);
   }
 
-  const record = await persistence.findById(id);
+  const collection = resourceDef.getCollection(db);
+  const record = await collection.findOne({ _id: new ObjectId(id) });
 
   if (!record) {
     throw new Error(`${resourceDef.name} not found`);
   }
-
-  const formatted = persistence.toExternal(record, resourceDef.idField);
 
   return {
     content: [
       {
         type: 'text',
         text: JSON.stringify({
-          ...formatted,
+          ...record,
+          _id: record._id.toString(),
+          [resourceDef.idField]: record._id.toString(),
         }, null, 2),
       },
     ],
@@ -374,9 +379,7 @@ export async function updateResource(db: Database, args: unknown) {
     throw new Error(`Unknown resource type: ${resource_type}`);
   }
 
-  const persistence = db.getResourcePersistence(resourceDef.collectionName);
-
-  if (!persistence.validateId(id)) {
+  if (!ObjectId.isValid(id)) {
     throw new Error(`Invalid ${resourceDef.idField}`);
   }
 
@@ -396,10 +399,11 @@ export async function updateResource(db: Database, args: unknown) {
   // Remove the id field from updates (it's used for querying, not updating)
   const { [resourceDef.idField]: _, ...updates } = validatedUpdate;
 
-  const result = await persistence.updateById(
-    id,
+  const collection = resourceDef.getCollection(db);
+  const result = await collection.findOneAndUpdate(
+    { _id: new ObjectId(id) },
     {
-      set: {
+      $set: {
         ...updates,
         updated_at: new Date(),
         updated_by: 'mcp',
@@ -412,14 +416,14 @@ export async function updateResource(db: Database, args: unknown) {
     throw new Error(`${resourceDef.name} not found`);
   }
 
-  const formatted = persistence.toExternal(result, resourceDef.idField);
-
   return {
     content: [
       {
         type: 'text',
         text: JSON.stringify({
-          ...formatted,
+          ...result,
+          _id: result._id.toString(),
+          [resourceDef.idField]: result._id.toString(),
         }, null, 2),
       },
     ],
@@ -435,19 +439,16 @@ export async function deleteResource(db: Database, args: unknown) {
     throw new Error(`Unknown resource type: ${resource_type}`);
   }
 
-  const persistence = db.getResourcePersistence(resourceDef.collectionName);
-
-  if (!persistence.validateId(id)) {
+  if (!ObjectId.isValid(id)) {
     throw new Error(`Invalid ${resourceDef.idField}`);
   }
 
-  const result = await persistence.deleteById(id);
+  const collection = resourceDef.getCollection(db);
+  const result = await collection.findOneAndDelete({ _id: new ObjectId(id) });
 
   if (!result) {
     throw new Error(`${resourceDef.name} not found`);
   }
-
-  const formatted = persistence.toExternal(result, resourceDef.idField);
 
   return {
     content: [
@@ -457,12 +458,69 @@ export async function deleteResource(db: Database, args: unknown) {
           success: true,
           [resourceDef.idField]: id,
           deleted: {
-            ...formatted,
+            ...result,
+            _id: result._id.toString(),
+            [resourceDef.idField]: result._id.toString(),
           },
         }, null, 2),
       },
     ],
   };
+}
+
+// Fields that are ObjectIds in MongoDB but come as strings in filters
+const OBJECT_ID_FIELDS = new Set([
+  'patient_id',
+  'provider_id',
+  'visit_id',
+  'prescription_id',
+  'lab_id',
+  'treatment_id',
+  'condition_id',
+  'allergy_id',
+  'immunization_id',
+  'vitals_id',
+  'procedure_id',
+  'imaging_id',
+  'insurance_id',
+  'ordered_by',
+  'prescriber_id',
+  'diagnosed_by',
+  'verified_by',
+  'administered_by',
+  'recorded_by',
+  'performed_by',
+]);
+
+function convertObjectIdFilters(query: any): any {
+  const converted: any = {};
+  for (const [key, value] of Object.entries(query)) {
+    console.error(`[DEBUG] Processing key=${key}, value=${value}, type=${typeof value}`);
+    console.error(`[DEBUG] OBJECT_ID_FIELDS.has(${key})=${OBJECT_ID_FIELDS.has(key)}`);
+    if (typeof value === 'string') {
+      console.error(`[DEBUG] ObjectId.isValid(${value})=${ObjectId.isValid(value)}`);
+    }
+    
+    if (OBJECT_ID_FIELDS.has(key) && typeof value === 'string' && ObjectId.isValid(value)) {
+      console.error(`[DEBUG] Converting ${key} to ObjectId`);
+      const oid = new ObjectId(value);
+      converted[key] = { $in: [oid, value] };
+      console.error(`[DEBUG] After assignment: converted[${key}] = $in(ObjectId(${oid.toString()}), ${value})`);
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value) && !(value instanceof Date)) {
+      // Recursively handle nested objects (e.g., $in, $gte, etc.)
+      converted[key] = convertObjectIdFilters(value);
+    } else if (Array.isArray(value) && OBJECT_ID_FIELDS.has(key)) {
+      // Handle arrays of ObjectIds (e.g., $in queries)
+      converted[key] = value.map((v: any) => 
+        typeof v === 'string' && ObjectId.isValid(v) ? new ObjectId(v) : v
+      );
+    } else {
+      console.error(`[DEBUG] Passing through ${key} unchanged`);
+      converted[key] = value;
+    }
+  }
+  console.error(`[DEBUG] Returning converted object with keys: ${Object.keys(converted).join(', ')}`);
+  return converted;
 }
 
 export async function listResource(db: Database, args: unknown) {
@@ -502,11 +560,36 @@ export async function listResource(db: Database, args: unknown) {
     query = filters;
   }
 
-  const persistence = db.getResourcePersistence(resourceDef.collectionName);
-  const records = await persistence.find(query, limit);
-  const formattedRecords = records.map((record) =>
-    persistence.toExternal(record, resourceDef.idField)
-  );
+  // Convert ObjectId string fields to ObjectId objects
+  console.error('[DEBUG] filters before conversion:', JSON.stringify(filters));
+  console.error('[DEBUG] query before conversion:', JSON.stringify(query));
+  query = convertObjectIdFilters(query);
+  console.error('[DEBUG] query after conversion:', JSON.stringify(query, (key, value) => {
+    if (value?.constructor?.name === 'ObjectId') {
+      return `ObjectId(${value.toString()})`;
+    }
+    if (value && typeof value === 'object' && '$in' in value) {
+      return { ...(value as any), '$in': (value as any)['$in'].map((v: any) => v?.constructor?.name === 'ObjectId' ? `ObjectId(${v.toString()})` : v) };
+    }
+    return value;
+  }));
+  console.error('[DEBUG] query instanceof check:', query.patient_id instanceof ObjectId);
+  console.error('[DEBUG] typeof query:', typeof query);
+  console.error('[DEBUG] Object.keys(query):', Object.keys(query));
+
+  const collection = resourceDef.getCollection(db);
+  console.error('[DEBUG] About to call find() with query:', JSON.stringify(query));
+  const records = await collection.find(query).limit(limit).toArray();
+  console.error('[DEBUG] found records:', records.length);
+  if (records.length > 0) {
+    console.error('[DEBUG] first record patient_id:', records[0].patient_id);
+  }
+
+  const formattedRecords = records.map((record: any) => ({
+    ...record,
+    _id: record._id.toString(),
+    [resourceDef.idField]: record._id.toString(),
+  }));
 
   return {
     content: [

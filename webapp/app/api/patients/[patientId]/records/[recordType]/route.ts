@@ -9,7 +9,7 @@ export async function GET(
   try {
     const { patientId, recordType } = await params;
     const client = await clientPromise;
-    const db = client.db('ac130_health');
+    const db = client.db('health_record');
     
     const patientObjectId = new ObjectId(patientId);
     

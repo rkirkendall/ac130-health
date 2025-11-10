@@ -1,6 +1,6 @@
-# AC130 Health Records Web Application
+# Medical Record Viewer Web Application
 
-A read-only web application for viewing health records stored in MongoDB. Built with Next.js and ShadCN UI components.
+A read-only web application for viewing medical records stored in MongoDB. Built with Next.js and ShadCN UI components.
 
 ## Features
 

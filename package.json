@@ -1,7 +1,7 @@
 {
-  "name": "ac130-health-mcp",
+  "name": "health-record-mcp",
   "version": "0.9.0",
-  "description": "AC130 Health - MCP server for managing longitudinal medical records with Docker support, allergies, immunizations, and vital signs tracking",
+  "description": "MCP server for managing longitudinal medical records with Docker support, allergies, immunizations, and vital signs tracking",
   "type": "module",
   "main": "dist/index.js",
   "scripts": {

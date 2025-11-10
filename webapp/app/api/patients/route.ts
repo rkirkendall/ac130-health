@@ -5,7 +5,7 @@ import { ObjectId } from 'mongodb';
 export async function GET() {
   try {
     const client = await clientPromise;
-    const db = client.db('ac130_health');
+    const db = client.db('health_record');
     
     const patients = await db.collection('patients')
       .find({})

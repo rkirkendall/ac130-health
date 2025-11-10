@@ -354,13 +354,6 @@ export const GetVisitSchema = z.object({
   visit_id: z.string(),
 });
 
-export const ListVisitsSchema = z.object({
-  patient_id: z.string().optional(),
-  provider_id: z.string().optional(),
-  type: z.enum(['office', 'er', 'telehealth', 'inpatient', 'other']).optional(),
-  limit: z.number().optional(),
-});
-
 const PrescriptionDataSchema = z.object({
   patient_id: z.string(),
   medication_name: z.string(),
@@ -390,14 +383,6 @@ export const UpdatePrescriptionSchema = z.object({
 
 export const GetPrescriptionSchema = z.object({
   prescription_id: z.string(),
-});
-
-export const ListPrescriptionsSchema = z.object({
-  patient_id: z.string().optional(),
-  prescriber_id: z.string().optional(),
-  status: z.enum(['active', 'stopped', 'completed']).optional(),
-  medication_name: z.string().optional(),
-  limit: z.number().optional(),
 });
 
 const LabDataSchema = z.object({
@@ -455,14 +440,6 @@ export const GetLabSchema = z.object({
   lab_id: z.string(),
 });
 
-export const ListLabsSchema = z.object({
-  patient_id: z.string().optional(),
-  test_name: z.string().optional(),
-  status: z.enum(['pending', 'final', 'corrected']).optional(),
-  ordered_by: z.string().optional(),
-  limit: z.number().optional(),
-});
-
 export const CreateTreatmentSchema = z.object({
   patient_id: z.string(),
   title: z.string().optional(),
@@ -489,13 +466,6 @@ export const UpdateTreatmentSchema = z.object({
 
 export const GetTreatmentSchema = z.object({
   treatment_id: z.string(),
-});
-
-export const ListTreatmentsSchema = z.object({
-  patient_id: z.string().optional(),
-  provider_id: z.string().optional(),
-  title: z.string().optional(),
-  limit: z.number().optional(),
 });
 
 const ConditionDataSchema = z.object({
@@ -527,14 +497,6 @@ export const UpdateConditionSchema = z.object({
 
 export const GetConditionSchema = z.object({
   condition_id: z.string(),
-});
-
-export const ListConditionsSchema = z.object({
-  patient_id: z.string().optional(),
-  diagnosed_by: z.string().optional(),
-  status: z.enum(['active', 'resolved', 'chronic']).optional(),
-  severity: z.enum(['mild', 'moderate', 'severe']).optional(),
-  limit: z.number().optional(),
 });
 
 // Allergy Schemas
@@ -569,13 +531,6 @@ export const GetAllergySchema = z.object({
   allergy_id: z.string(),
 });
 
-export const ListAllergiesSchema = z.object({
-  patient_id: z.string().optional(),
-  type: z.enum(['drug', 'food', 'environmental', 'other']).optional(),
-  severity: z.enum(['mild', 'moderate', 'severe', 'life-threatening']).optional(),
-  limit: z.number().optional(),
-});
-
 // Immunization Schemas
 const ImmunizationDataSchema = z.object({
   patient_id: z.string(),
@@ -608,13 +563,6 @@ export const UpdateImmunizationSchema = z.object({
 
 export const GetImmunizationSchema = z.object({
   immunization_id: z.string(),
-});
-
-export const ListImmunizationsSchema = z.object({
-  patient_id: z.string().optional(),
-  vaccine_name: z.string().optional(),
-  administered_by: z.string().optional(),
-  limit: z.number().optional(),
 });
 
 // Vital Signs Schemas
@@ -701,12 +649,6 @@ export const GetVitalSignsSchema = z.object({
   vitals_id: z.string(),
 });
 
-export const ListVitalSignsSchema = z.object({
-  patient_id: z.string().optional(),
-  recorded_by: z.string().optional(),
-  limit: z.number().optional(),
-});
-
 // Procedure Schemas
 const ProcedureDataSchema = z.object({
   patient_id: z.string(),
@@ -741,13 +683,6 @@ export const UpdateProcedureSchema = z.object({
 
 export const GetProcedureSchema = z.object({
   procedure_id: z.string(),
-});
-
-export const ListProceduresSchema = z.object({
-  patient_id: z.string().optional(),
-  procedure_type: z.enum(['surgery', 'diagnostic', 'therapeutic', 'other']).optional(),
-  performed_by: z.string().optional(),
-  limit: z.number().optional(),
 });
 
 // Imaging Schemas
@@ -788,13 +723,6 @@ export const GetImagingSchema = z.object({
   imaging_id: z.string(),
 });
 
-export const ListImagingSchema = z.object({
-  patient_id: z.string().optional(),
-  modality: z.enum(['X-Ray', 'CT', 'MRI', 'Ultrasound', 'PET', 'Nuclear', 'Other']).optional(),
-  ordered_by: z.string().optional(),
-  limit: z.number().optional(),
-});
-
 // Insurance Schemas
 const InsuranceDataSchema = z.object({
   patient_id: z.string(),
@@ -833,13 +761,6 @@ export const UpdateInsuranceSchema = z.object({
 
 export const GetInsuranceSchema = z.object({
   insurance_id: z.string(),
-});
-
-export const ListInsuranceSchema = z.object({
-  patient_id: z.string().optional(),
-  coverage_type: z.enum(['primary', 'secondary', 'tertiary']).optional(),
-  provider_name: z.string().optional(),
-  limit: z.number().optional(),
 });
 
 export const UpdateHealthSummarySchema = z.object({
