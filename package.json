@@ -18,6 +18,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@ac130/mcp-core": "git+https://github.com/rkirkendall/ac130-shared.git#main",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "dotenv": "^16.4.7",
     "mongodb": "^6.11.0",

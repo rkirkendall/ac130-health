@@ -6,14 +6,19 @@ RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies
-COPY package.json package-lock.json* ./
+COPY ac130/webapp/package.json ac130/webapp/package-lock.json* ./
 RUN npm ci
 
 # Rebuild the source code only when needed
 FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY ac130/webapp .
+# Copy shared package
+COPY ac130-shared/packages/record-viewer/src/components ./components/shared/
+COPY ac130-shared/packages/record-viewer/src/types.ts ./components/shared/
+COPY ac130-shared/packages/record-viewer/src/utils.ts ./components/shared/
+COPY ac130-shared/packages/record-viewer/src/utils ./components/shared/utils/
 
 # Build Next.js
 RUN npm run build

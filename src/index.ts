@@ -2,6 +2,8 @@
 
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { createServer } from 'node:http';
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -24,6 +26,10 @@ dotenv.config();
 
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
 const DB_NAME = process.env.HEALTH_RECORD_DB_NAME || 'health_record';
+const MCP_TRANSPORT = process.env.MCP_TRANSPORT || 'stdio';
+const MCP_PORT = parseInt(process.env.MCP_PORT || '3002');
+
+console.error(`MCP Transport: ${MCP_TRANSPORT}, Port: ${MCP_PORT}`);
 
 const server = new Server(
   {
@@ -384,11 +390,54 @@ async function main() {
   try {
     await db.connect();
     await db.createIndexes();
-    
-    const transport = new StdioServerTransport();
-    await server.connect(transport);
-    
-    console.error('Health Record MCP Server running on stdio');
+
+    if (MCP_TRANSPORT === 'http') {
+      // HTTP transport
+      const transport = new StreamableHTTPServerTransport({
+        sessionIdGenerator: () => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      });
+
+      await server.connect(transport);
+
+      const httpServer = createServer(async (req, res) => {
+        try {
+          // Parse the request body if it's a POST request
+          let parsedBody: unknown;
+          if (req.method === 'POST') {
+            const buffers = [];
+            for await (const chunk of req) {
+              buffers.push(chunk);
+            }
+            const body = Buffer.concat(buffers).toString();
+            try {
+              parsedBody = JSON.parse(body);
+            } catch (parseError) {
+              console.error('Failed to parse JSON body:', parseError);
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Invalid JSON' }));
+              return;
+            }
+          }
+
+          await transport.handleRequest(req, res, parsedBody);
+        } catch (error) {
+          console.error('HTTP request error:', error);
+          if (!res.headersSent) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: 'Internal server error' }));
+          }
+        }
+      });
+
+      httpServer.listen(MCP_PORT, () => {
+        console.error(`Health Record MCP Server running on HTTP port ${MCP_PORT}`);
+      });
+    } else {
+      // Default stdio transport
+      const transport = new StdioServerTransport();
+      await server.connect(transport);
+      console.error('Health Record MCP Server running on stdio');
+    }
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

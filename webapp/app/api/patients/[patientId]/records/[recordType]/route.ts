@@ -13,14 +13,9 @@ export async function GET(
     
     const patientObjectId = new ObjectId(patientId);
     
-    // Try to find records with either ObjectId or string patient_id
+    // Find records with ObjectId patient_id (all records should now use ObjectId)
     const records = await db.collection(recordType)
-      .find({ 
-        $or: [
-          { patient_id: patientObjectId },
-          { patient_id: patientId }
-        ]
-      })
+      .find({ patient_id: patientObjectId })
       .sort({ created_at: -1 })
       .toArray();
     

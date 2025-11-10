@@ -4,16 +4,21 @@ FROM node:24-alpine
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
-COPY tsconfig.json ./
+# Copy package files from ac130 project
+COPY ac130/package*.json ./
+COPY ac130/tsconfig.json ./
+
+# Copy shared package locally for installation
+COPY ac130-shared /ac130-shared
 
 # Install all dependencies (including dev dependencies for build)
-RUN npm ci && \
+RUN apk add --no-cache git && \
+    npm pkg set dependencies.@ac130/mcp-core="file:/ac130-shared" && \
+    npm install && \
     npm install -g tsx typescript
 
 # Copy source code
-COPY src ./src
+COPY ac130/src ./src
 
 # Build TypeScript
 RUN npm run build

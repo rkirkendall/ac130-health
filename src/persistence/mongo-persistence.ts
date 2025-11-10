@@ -95,14 +95,15 @@ class MongoResourcePersistence implements ResourcePersistence {
   }
 
   async create(record: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const result = await this.collection.insertOne(record);
+    const converted = this.convertCreateValues(record);
+    const result = await this.collection.insertOne(converted);
     if (!result.insertedId) {
       throw new Error(`Failed to insert document into ${this.collectionName}`);
     }
 
     const inserted = await this.collection.findOne({ _id: result.insertedId } as Query);
     if (!inserted) {
-      return { ...record, _id: result.insertedId };
+      return { ...converted, _id: result.insertedId };
     }
     return inserted;
   }
@@ -114,7 +115,8 @@ class MongoResourcePersistence implements ResourcePersistence {
       return [];
     }
 
-    const result = await this.collection.insertMany(records);
+    const converted = records.map(record => this.convertCreateValues(record));
+    const result = await this.collection.insertMany(converted);
     const insertedIds = Object.values(result.insertedIds ?? {});
 
     if (insertedIds.length === 0) {
@@ -247,6 +249,22 @@ class MongoResourcePersistence implements ResourcePersistence {
       throw new Error('No update operations provided');
     }
     return updateDoc;
+  }
+
+  private convertCreateValues(values: Record<string, unknown>): Record<string, unknown> {
+    const converted: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(values)) {
+      if (value === undefined) {
+        continue;
+      }
+
+      if (this.objectIdFields.has(key)) {
+        converted[key] = convertValueForIdField(value);
+      } else {
+        converted[key] = value;
+      }
+    }
+    return converted;
   }
 
   private convertUpdateValues(values: Record<string, unknown>): Record<string, unknown> {

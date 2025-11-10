@@ -6,8 +6,8 @@ export interface Patient {
   dob?: string;
   sex?: string;
   contact?: { phone?: string; email?: string };
-  created_at: string;
-  updated_at: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface RecordCount {
