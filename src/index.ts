@@ -21,6 +21,7 @@ import { createResource, getResource, updateResource, deleteResource, listResour
 import { updateHealthSummary, getHealthSummary } from './tools/summary.js';
 import { getAllResourceTypes, RESOURCE_REGISTRY } from './resource-registry.js';
 import { getCreateSchemaJson, getUpdateSchemaJson, getListSchemaJson } from './schema-utils.js';
+import { getSharedResourceMetadata, readSharedResource } from '@ac130/mcp-core';
 
 dotenv.config();
 
@@ -60,7 +61,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
     tools: [
       {
         name: 'create_resource',
-        description: `Create one or more resource records. Supports batch creation for resources that support it. Available resource types:\n${resourceTypeDescriptions}\n\nIMPORTANT: Read the schema resource at 'schema://{resource_type}/create' to see the exact fields and structure required.
+        description: `Create one or more resource records. Supports batch creation for resources that support it. Available resource types:\n${resourceTypeDescriptions}\n\nIMPORTANT: Read the schema resource at 'schema://{resource_type}/create' to see the exact fields and structure required. For prescription, condition, lab, and visit records you must call list_resource first to confirm no duplicates exist, then pass duplicate_check_confirmed=true when retrying create_resource.
 
 USAGE PATTERNS:
 
@@ -111,6 +112,10 @@ EXAMPLE - Batch Create Labs:
             },
             data: {
               description: 'The resource data. Can be a single object or an array of objects for batch creation. Structure depends on resource_type. Read schema://{resource_type}/create for exact schema.',
+            },
+            duplicate_check_confirmed: {
+              type: 'boolean',
+              description: 'Required for prescription, condition, lab, and visit records. Call list_resource first to ensure a duplicate does not already exist, then retry create_resource with this set to true.',
             },
           },
           required: ['resource_type', 'data'],
@@ -306,6 +311,8 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
     ];
   });
 
+  const sharedResources = getSharedResourceMetadata();
+
   return {
     resources: [
       {
@@ -314,6 +321,7 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
         description: 'Current health summary for a patient',
         mimeType: 'text/plain',
       },
+      ...sharedResources,
       ...schemaResources,
     ],
   };
@@ -333,6 +341,19 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
           uri,
           mimeType: 'text/plain',
           text: summaryText,
+        },
+      ],
+    };
+  }
+  
+  const sharedResource = readSharedResource(uri);
+  if (sharedResource) {
+    return {
+      contents: [
+        {
+          uri,
+          mimeType: sharedResource.mimeType,
+          text: sharedResource.text,
         },
       ],
     };
@@ -392,9 +413,9 @@ async function main() {
     await db.createIndexes();
 
     if (MCP_TRANSPORT === 'http') {
-      // HTTP transport
+      // HTTP transport (stateless mode, like cloud version)
       const transport = new StreamableHTTPServerTransport({
-        sessionIdGenerator: () => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sessionIdGenerator: undefined,
       });
 
       await server.connect(transport);
@@ -445,4 +466,3 @@ async function main() {
 }
 
 main();
-
