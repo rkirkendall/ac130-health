@@ -21,7 +21,7 @@ export interface RecordData {
 }
 
 export const RECORD_TYPES = [
-  { type: 'active_summaries', label: 'Health Summary' },
+  { type: 'active_summaries', label: 'Patient Profile' },
   { type: 'visits', label: 'Visits' },
   { type: 'prescriptions', label: 'Prescriptions' },
   { type: 'labs', label: 'Labs' },
@@ -34,4 +34,3 @@ export const RECORD_TYPES = [
   { type: 'insurance', label: 'Insurance' },
   { type: 'treatments', label: 'Treatments' },
 ];
-
