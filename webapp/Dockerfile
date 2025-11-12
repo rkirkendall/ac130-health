@@ -1,8 +1,7 @@
-FROM node:20-alpine AS base
+FROM node:20-bookworm-slim AS base
 
 # Install dependencies only when needed
 FROM base AS deps
-RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
 # Install dependencies
@@ -14,11 +13,9 @@ FROM base AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY ac130/webapp .
-# Copy shared package
-COPY ac130-shared/packages/record-viewer/src/components ./components/shared/
-COPY ac130-shared/packages/record-viewer/src/types.ts ./components/shared/
-COPY ac130-shared/packages/record-viewer/src/utils.ts ./components/shared/
-COPY ac130-shared/packages/record-viewer/src/utils ./components/shared/utils/
+
+# Ensure platform-specific native bindings are available for Tailwind v4
+RUN npm install --no-save lightningcss @tailwindcss/oxide
 
 # Build Next.js
 RUN npm run build
