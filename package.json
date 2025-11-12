@@ -4,11 +4,31 @@
   "description": "MCP server for managing longitudinal medical records with Docker support, allergies, immunizations, and vital signs tracking",
   "type": "module",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "default": "./dist/core/index.js"
+    },
+    "./core/*": {
+      "types": "./dist/core/*.d.ts",
+      "default": "./dist/core/*.js"
+    },
+    "./core/*.js": {
+      "types": "./dist/core/*.d.ts",
+      "default": "./dist/core/*.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "prepare": "npm run build"
   },
   "keywords": [
     "mcp",
@@ -18,7 +38,6 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@ac130/mcp-core": "git+https://github.com/rkirkendall/ac130-shared.git#main",
     "@modelcontextprotocol/sdk": "^1.0.4",
     "dotenv": "^16.4.7",
     "mongodb": "^6.11.0",

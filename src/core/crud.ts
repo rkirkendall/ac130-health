@@ -1,0 +1,850 @@
+import { getResourceDefinition, getAllResourceTypes } from './resource-registry.js';
+import type { ResourceDefinition, ResourceType } from './resource-registry.js';
+import { z, type ZodType } from 'zod';
+import { zodToJsonSchemaForMCP } from './schema-utils.js';
+import type { PersistenceAdapter } from './persistence.js';
+import { HEALTH_SUMMARY_OUTLINE_URI } from './resources.js';
+
+/**
+ * Extract helpful schema hints from validation errors
+ */
+function extractSchemaHints(jsonSchema: any, error: z.ZodError, receivedData: any): string {
+  const hints: string[] = [];
+  
+  // Extract object data for analysis (handle arrays)
+  let dataForAnalysis = receivedData;
+  if (Array.isArray(receivedData) && receivedData.length > 0) {
+    dataForAnalysis = receivedData[0];
+  }
+  
+  // Handle union types (single object vs array)
+  if (jsonSchema.oneOf) {
+    const objectSchema = jsonSchema.oneOf.find((s: any) => s.type === 'object');
+    const arraySchema = jsonSchema.oneOf.find((s: any) => s.type === 'array');
+    
+    if (objectSchema && arraySchema) {
+      hints.push('Schema accepts either:');
+      hints.push('  1. A single object');
+      hints.push('  2. An array of objects (for batch creation)');
+      
+      // Use the object schema for field hints
+      if (objectSchema.properties) {
+        const required = objectSchema.required || [];
+        const receivedKeys = dataForAnalysis && typeof dataForAnalysis === 'object' && !Array.isArray(dataForAnalysis)
+          ? Object.keys(dataForAnalysis)
+          : [];
+        
+        if (required.length > 0) {
+          const missing = required.filter((key: string) => !receivedKeys.includes(key));
+          if (missing.length > 0) {
+            hints.push(`\nMissing required fields: ${missing.join(', ')}`);
+          }
+        }
+        
+        // Show expected top-level fields
+        const expectedFields = Object.keys(objectSchema.properties);
+        const unexpected = receivedKeys.filter((key: string) => !expectedFields.includes(key));
+        if (unexpected.length > 0) {
+          hints.push(`\nUnexpected fields received: ${unexpected.join(', ')}`);
+          hints.push(`Expected top-level fields: ${expectedFields.join(', ')}`);
+        } else if (receivedKeys.length === 0 && required.length > 0) {
+          hints.push(`\nExpected top-level fields: ${expectedFields.join(', ')}`);
+        }
+      }
+    } else {
+      // Fallback: try first schema in oneOf
+      const firstSchema = jsonSchema.oneOf[0];
+      if (firstSchema && firstSchema.properties) {
+        const required = firstSchema.required || [];
+        const receivedKeys = dataForAnalysis && typeof dataForAnalysis === 'object' && !Array.isArray(dataForAnalysis)
+          ? Object.keys(dataForAnalysis)
+          : [];
+        
+        if (required.length > 0) {
+          const missing = required.filter((key: string) => !receivedKeys.includes(key));
+          if (missing.length > 0) {
+            hints.push(`Missing required fields: ${missing.join(', ')}`);
+          }
+        }
+      }
+    }
+  } else if (jsonSchema.type === 'object' && jsonSchema.properties) {
+    // Single object schema
+    const required = jsonSchema.required || [];
+    const receivedKeys = dataForAnalysis && typeof dataForAnalysis === 'object' && !Array.isArray(dataForAnalysis)
+      ? Object.keys(dataForAnalysis)
+      : [];
+    
+    if (required.length > 0) {
+      const missing = required.filter((key: string) => !receivedKeys.includes(key));
+      if (missing.length > 0) {
+        hints.push(`Missing required fields: ${missing.join(', ')}`);
+      }
+    }
+    
+    // Show expected fields
+    const expectedFields = Object.keys(jsonSchema.properties);
+    const unexpected = receivedKeys.filter((key: string) => !expectedFields.includes(key));
+    if (unexpected.length > 0) {
+      hints.push(`Unexpected fields: ${unexpected.join(', ')}`);
+      hints.push(`Expected fields: ${expectedFields.join(', ')}`);
+    } else if (receivedKeys.length === 0) {
+      hints.push(`Expected fields: ${expectedFields.join(', ')}`);
+    }
+  }
+  
+  // Add specific field type hints for common errors
+  const missingRequiredIssues = error.issues.filter(issue => 
+    issue.code === 'invalid_type' && issue.message.includes('Required')
+  );
+  
+  if (missingRequiredIssues.length > 0) {
+    const missingFields = missingRequiredIssues.map(issue => {
+      const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
+      return path;
+    });
+    
+    if (hints.length === 0) {
+      hints.push(`Missing required fields: ${missingFields.join(', ')}`);
+    }
+  }
+  
+  // Provide example structure for complex nested objects and arrays
+  const nestedObjectIssues = error.issues.filter(issue => 
+    issue.path.length > 0 && 
+    (issue.code === 'invalid_type' || issue.code === 'invalid_union')
+  );
+  
+  if (nestedObjectIssues.length > 0) {
+    // Group errors by field path to identify problematic nested structures
+    const pathGroups = new Map<string, z.ZodIssue[]>();
+    nestedObjectIssues.forEach(issue => {
+      if (issue.path.length > 0) {
+        const firstLevel = issue.path[0].toString();
+        if (!pathGroups.has(firstLevel)) {
+          pathGroups.set(firstLevel, []);
+        }
+        pathGroups.get(firstLevel)!.push(issue);
+      }
+    });
+    
+    // Extract object schema for nested field analysis
+    let objectSchemaForNested = jsonSchema;
+    if (jsonSchema.oneOf) {
+      const objSchema = jsonSchema.oneOf.find((s: any) => s.type === 'object');
+      if (objSchema) objectSchemaForNested = objSchema;
+    }
+    
+    pathGroups.forEach((issues, fieldName) => {
+      // Check if this is a results array issue
+      if (fieldName === 'results' || issues.some(i => i.path.includes('results'))) {
+        const resultsIssues = issues.filter(i => i.path.includes('results'));
+        if (resultsIssues.length > 0) {
+          const resultsSchema = objectSchemaForNested.properties?.results;
+          if (resultsSchema && resultsSchema.type === 'array' && resultsSchema.items) {
+            const itemProps = resultsSchema.items.properties || {};
+            const requiredFields = resultsSchema.items.required || [];
+            const allFields = Object.keys(itemProps);
+            
+            // Check what fields are missing
+            const missingFields = resultsIssues
+              .filter(i => i.code === 'invalid_type' && i.message.includes('Required'))
+              .map(i => i.path[i.path.length - 1]?.toString())
+              .filter(Boolean);
+            
+            if (missingFields.length > 0) {
+              hints.push(`\nIn 'results' array: Missing required field(s): ${[...new Set(missingFields)].join(', ')}`);
+              hints.push(`Each item in 'results' array must have: ${allFields.join(', ')}`);
+              if (requiredFields.length > 0) {
+                hints.push(`Required fields in each 'results' item: ${requiredFields.join(', ')}`);
+              }
+            } else {
+              hints.push(`\nField 'results' expects an array. Each item should have: ${allFields.join(', ')}`);
+            }
+          }
+        }
+      } else if (objectSchemaForNested.properties && objectSchemaForNested.properties[fieldName]) {
+        const fieldSchema = objectSchemaForNested.properties[fieldName];
+        if (fieldSchema.type === 'array' && fieldSchema.items) {
+          const itemProps = fieldSchema.items.properties || {};
+          hints.push(`\nField '${fieldName}' expects an array. Each item should have: ${Object.keys(itemProps).join(', ')}`);
+        }
+      }
+    });
+  }
+  
+  return hints.length > 0 
+    ? `Schema hints:\n${hints.join('\n')}`
+    : 'Check the schema resource for the exact structure required.';
+}
+
+function parseWithEnhancedErrors<T>(
+  schema: ZodType<T>,
+  data: unknown,
+  resourceType: string,
+  schemaKind: 'create' | 'update' | 'list'
+): T {
+  try {
+    return schema.parse(data);
+  } catch (error: any) {
+    if (error instanceof z.ZodError) {
+      let errorToUse: z.ZodError = error;
+      if (error.issues.length === 1 && error.issues[0].code === 'invalid_union') {
+        const unionIssue: any = error.issues[0];
+        if (Array.isArray(unionIssue.unionErrors)) {
+          const isArray = Array.isArray(data);
+          const matchingError = unionIssue.unionErrors.find((err: z.ZodError) => {
+            if (isArray) {
+              return err.issues.some((issue: any) =>
+                issue.path.length > 0 || issue.message.includes('array')
+              );
+            }
+            return err.issues.some((issue: any) =>
+              issue.code === 'invalid_type' && issue.expected === 'object'
+            );
+          }) || unionIssue.unionErrors[isArray ? 1 : 0];
+
+          if (matchingError) {
+            errorToUse = matchingError;
+          }
+        }
+      }
+
+      const jsonSchema = zodToJsonSchemaForMCP(schema);
+      const schemaHint = extractSchemaHints(jsonSchema, errorToUse, data);
+      const issues = errorToUse.issues.map((issue) => {
+        const path = issue.path.length > 0 ? issue.path.join('.') : 'root';
+        return `  - ${path}: ${issue.message}`;
+      }).join('\n');
+
+      const heading = schemaKind === 'create'
+        ? `Validation failed for ${resourceType}`
+        : `Validation failed for ${resourceType} (${schemaKind})`;
+
+      throw new Error(
+        `${heading}:\n${issues}\n\n` +
+        `${schemaHint}\n\n` +
+        `For complete schema details, read: schema://${resourceType}/${schemaKind}`
+      );
+    }
+    throw error;
+  }
+}
+
+// Generic schemas for CRUD operations
+const CreateResourceSchema = z.object({
+  resource_type: z.string(),
+  data: z.any(), // Will be validated by resource-specific schema
+  duplicate_check_confirmed: z.boolean().optional(),
+});
+
+const GetResourceSchema = z.object({
+  resource_type: z.string(),
+  id: z.string(),
+});
+
+const UpdateResourceSchema = z.object({
+  resource_type: z.string(),
+  id: z.string(),
+  data: z.any(), // Update fields - can be object or JSON string
+});
+
+const DeleteResourceSchema = z.object({
+  resource_type: z.string(),
+  id: z.string(),
+});
+
+const ListResourceSchema = z.object({
+  resource_type: z.string(),
+  filters: z.any().optional(), // Can be object or JSON string
+  limit: z.number().optional(),
+});
+
+type HealthSummaryAction = 'create' | 'update';
+
+interface SuggestedAction {
+  tool: string;
+  reason: string;
+  params: {
+    patient_id: string;
+    summary_text: string;
+  };
+}
+
+type SuggestionCopy = Record<HealthSummaryAction, { reason: string; summaryText: string }>;
+
+const HEALTH_SUMMARY_SUGGESTION_COPY: Partial<Record<ResourceType, SuggestionCopy>> = {
+  patient: {
+    create: {
+      reason: 'New patient record created',
+      summaryText:
+        'Draft an initial health summary covering demographics, history, medications, and current goals.',
+    },
+    update: {
+      reason: 'Patient record updated',
+      summaryText:
+        'Refresh the summary to reflect the latest demographic or contact updates for this patient.',
+    },
+  },
+  condition: {
+    create: {
+      reason: 'New active condition added',
+      summaryText:
+        'Describe the new condition, its severity, and the plan for monitoring or treatment.',
+    },
+    update: {
+      reason: 'Condition details changed',
+      summaryText:
+        'Update the summary to reflect the revised condition status, severity, or timeline.',
+    },
+  },
+  prescription: {
+    create: {
+      reason: 'Medication list changed',
+      summaryText:
+        'Explain how the new medication affects the treatment plan, dosage, and adherence considerations.',
+    },
+    update: {
+      reason: 'Medication details changed',
+      summaryText:
+        'Capture the updated prescription details, including changes to dosing, status, or stop dates.',
+    },
+  },
+  lab: {
+    create: {
+      reason: 'New lab results recorded',
+      summaryText:
+        'Summarize the latest lab findings, notable values, and any clinical implications.',
+    },
+    update: {
+      reason: 'Lab record updated',
+      summaryText:
+        'Revise the summary with the updated lab interpretations, trends, or corrected values.',
+    },
+  },
+  visit: {
+    create: {
+      reason: 'New visit documented',
+      summaryText:
+        'Highlight the encounter reason, key findings, and follow-up items from the new visit.',
+    },
+    update: {
+      reason: 'Visit details changed',
+      summaryText:
+        'Align the summary with the revised encounter details, plans, or diagnoses.',
+    },
+  },
+  treatment: {
+    create: {
+      reason: 'Treatment plan updated',
+      summaryText:
+        'Document the new treatment objectives, steps, and responsible care team members.',
+    },
+    update: {
+      reason: 'Treatment plan adjusted',
+      summaryText:
+        'Explain how the treatment plan has changed, including progress or new tasks.',
+    },
+  },
+  allergy: {
+    create: {
+      reason: 'New allergy documented',
+      summaryText:
+        'Note the new allergy, reaction history, and precautions in the health summary.',
+    },
+    update: {
+      reason: 'Allergy details changed',
+      summaryText:
+        'Update the summary to reflect revised allergy severity, reactions, or verification status.',
+    },
+  },
+  immunization: {
+    create: {
+      reason: 'New immunization recorded',
+      summaryText:
+        'Add the vaccine details, dates, and any follow-up boosters to the summary.',
+    },
+    update: {
+      reason: 'Immunization details updated',
+      summaryText:
+        'Revise the summary with the corrected immunization dates, lot numbers, or context.',
+    },
+  },
+  vital_signs: {
+    create: {
+      reason: 'New vitals recorded',
+      summaryText:
+        'Summarize notable vital sign trends, ranges, and any deviations requiring attention.',
+    },
+    update: {
+      reason: 'Vital sign measurements updated',
+      summaryText:
+        'Update the summary to capture the latest vital sign changes or clarifications.',
+    },
+  },
+  procedure: {
+    create: {
+      reason: 'New procedure documented',
+      summaryText:
+        'Describe the procedure, outcomes, and recovery considerations in the summary.',
+    },
+    update: {
+      reason: 'Procedure details changed',
+      summaryText:
+        'Revise the summary to incorporate updated procedure details or follow-up needs.',
+    },
+  },
+  imaging: {
+    create: {
+      reason: 'New imaging study recorded',
+      summaryText:
+        'Summarize the imaging modality, findings, and diagnostic impact for the patient.',
+    },
+    update: {
+      reason: 'Imaging details updated',
+      summaryText:
+        'Update the summary with revised imaging interpretations or status changes.',
+    },
+  },
+  insurance: {
+    create: {
+      reason: 'Insurance coverage changed',
+      summaryText:
+        'Explain how the new coverage affects care coordination, prior authorizations, or billing.',
+    },
+    update: {
+      reason: 'Insurance record updated',
+      summaryText:
+        'Capture the latest insurance details so the summary reflects accurate coverage information.',
+    },
+  },
+};
+
+const OUTLINE_REFERENCE_HINT = `Refer to ${HEALTH_SUMMARY_OUTLINE_URI} for the standard outline.`;
+
+const HIGH_RISK_DUPLICATE_RESOURCE_TYPES = new Set<ResourceType>([
+  'prescription',
+  'condition',
+  'lab',
+  'visit',
+]);
+
+const DUPLICATE_FILTER_HINTS: Partial<Record<ResourceType, string[]>> = {
+  prescription: ['patient_id', 'medication_name', 'status'],
+  condition: ['patient_id', 'name', 'status'],
+  lab: ['patient_id', 'test_name', 'result_date'],
+  visit: ['patient_id', 'date', 'type'],
+};
+
+function normalizePatientId(value: unknown): string | null {
+  if (!value) {
+    return null;
+  }
+
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return value;
+  }
+
+  if (typeof value === 'object' && typeof (value as any)?.toString === 'function') {
+    const stringValue = (value as any).toString();
+    if (typeof stringValue === 'string' && stringValue !== '[object Object]') {
+      return stringValue;
+    }
+  }
+
+  return null;
+}
+
+function extractPatientIdFromRecord(
+  resourceType: ResourceType,
+  resourceDef: ResourceDefinition,
+  record: Record<string, unknown>
+): string | null {
+  if (!record || typeof record !== 'object') {
+    return null;
+  }
+
+  if ('patient_id' in record) {
+    const patientId = normalizePatientId((record as Record<string, unknown>).patient_id);
+    if (patientId) {
+      return patientId;
+    }
+  }
+
+  if (resourceType === 'patient') {
+    const patientId = normalizePatientId(record[resourceDef.idField]);
+    if (patientId) {
+      return patientId;
+    }
+  }
+
+  return null;
+}
+
+function extractPatientIds(
+  resourceType: ResourceType,
+  resourceDef: ResourceDefinition,
+  records: Record<string, unknown> | Record<string, unknown>[]
+): string[] {
+  const array = Array.isArray(records) ? records : [records];
+  const ids = new Set<string>();
+  array.forEach((record) => {
+    const patientId = extractPatientIdFromRecord(resourceType, resourceDef, record);
+    if (patientId) {
+      ids.add(patientId);
+    }
+  });
+  return Array.from(ids);
+}
+
+function buildHealthSummaryMeta(
+  resourceType: ResourceType,
+  action: HealthSummaryAction,
+  resourceDef: ResourceDefinition,
+  records: Record<string, unknown> | Record<string, unknown>[]
+): Record<string, unknown> | null {
+  const copy = HEALTH_SUMMARY_SUGGESTION_COPY[resourceType];
+  if (!copy) {
+    return null;
+  }
+
+  const patientIds = extractPatientIds(resourceType, resourceDef, records);
+  if (patientIds.length === 0) {
+    return null;
+  }
+
+  const actionCopy = copy[action];
+  if (!actionCopy) {
+    return null;
+  }
+
+  const suggestedActions: SuggestedAction[] = patientIds.map((patientId) => ({
+    tool: 'update_health_summary',
+    reason: `${actionCopy.reason}. ${OUTLINE_REFERENCE_HINT}`,
+    params: {
+      patient_id: patientId,
+      summary_text: actionCopy.summaryText,
+    },
+  }));
+
+  if (suggestedActions.length === 0) {
+    return null;
+  }
+
+  return {
+    suggested_actions: suggestedActions,
+    reference_resources: [HEALTH_SUMMARY_OUTLINE_URI],
+  };
+}
+
+function buildDuplicateCheckError(resourceType: ResourceType): string {
+  const hints = DUPLICATE_FILTER_HINTS[resourceType];
+  const hintText = hints && hints.length > 0
+    ? `Recommended filters when checking for duplicates: ${hints.join(', ')}`
+    : '';
+  return [
+    `Duplicate check required for ${resourceType} records.`,
+    `Call list_resource first to confirm an identical record does not already exist, then retry create_resource with duplicate_check_confirmed=true.`,
+    hintText,
+  ].filter(Boolean).join('\n');
+}
+
+export async function createResource(adapter: PersistenceAdapter, args: unknown) {
+  const validated = CreateResourceSchema.parse(args);
+  let { resource_type, data, duplicate_check_confirmed } = validated;
+
+  const resourceDef = getResourceDefinition(resource_type);
+  if (!resourceDef) {
+    throw new Error(`Unknown resource type: ${resource_type}. Available types: ${getAllResourceTypes().join(', ')}`);
+  }
+
+  const typedResourceType = resource_type as ResourceType;
+  if (
+    HIGH_RISK_DUPLICATE_RESOURCE_TYPES.has(typedResourceType) &&
+    duplicate_check_confirmed !== true
+  ) {
+    throw new Error(buildDuplicateCheckError(typedResourceType));
+  }
+
+  // Handle case where data arrives as a JSON string (common with some MCP clients)
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      throw new Error(`Invalid JSON in data parameter: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  const validatedData = parseWithEnhancedErrors(
+    resourceDef.createSchema,
+    data,
+    resource_type,
+    'create'
+  );
+  const persistence = adapter.forCollection(resourceDef.collectionName);
+  const now = new Date();
+  const resourceType = typedResourceType;
+
+  // Handle batch creation
+  if (Array.isArray(validatedData)) {
+    if (!resourceDef.supportsBatch) {
+      throw new Error(`Resource type ${resource_type} does not support batch creation`);
+    }
+
+    const records = validatedData.map((item: any) => ({
+      ...item,
+      created_at: now,
+      updated_at: now,
+      created_by: 'mcp',
+      updated_by: 'mcp',
+    }));
+
+    const insertedRecords = await persistence.createMany(records);
+    const formatted = insertedRecords.map((record) =>
+      persistence.toExternal(record, resourceDef.idField)
+    );
+
+    const meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
+
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            count: formatted.length,
+            [resourceDef.collectionName]: formatted,
+          }, null, 2),
+        },
+      ],
+      ...(meta ? { _meta: meta } : {}),
+    };
+  }
+
+  // Handle single creation
+  const record = {
+    ...validatedData,
+    created_at: now,
+    updated_at: now,
+    created_by: 'mcp',
+    updated_by: 'mcp',
+  };
+
+  const inserted = await persistence.create(record);
+  const formatted = persistence.toExternal(inserted, resourceDef.idField);
+  const meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          ...formatted,
+        }, null, 2),
+      },
+    ],
+    ...(meta ? { _meta: meta } : {}),
+  };
+}
+
+export async function getResource(adapter: PersistenceAdapter, args: unknown) {
+  const validated = GetResourceSchema.parse(args);
+  const { resource_type, id } = validated;
+
+  const resourceDef = getResourceDefinition(resource_type);
+  if (!resourceDef) {
+    throw new Error(`Unknown resource type: ${resource_type}`);
+  }
+
+  const persistence = adapter.forCollection(resourceDef.collectionName);
+
+  if (!persistence.validateId(id)) {
+    throw new Error(`Invalid ${resourceDef.idField}`);
+  }
+
+  const record = await persistence.findById(id);
+
+  if (!record) {
+    throw new Error(`${resourceDef.name} not found`);
+  }
+
+  const formatted = persistence.toExternal(record, resourceDef.idField);
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          ...formatted,
+        }, null, 2),
+      },
+    ],
+  };
+}
+
+export async function updateResource(adapter: PersistenceAdapter, args: unknown) {
+  const validated = UpdateResourceSchema.parse(args);
+  let { resource_type, id, data } = validated;
+
+  const resourceDef = getResourceDefinition(resource_type);
+  if (!resourceDef) {
+    throw new Error(`Unknown resource type: ${resource_type}`);
+  }
+
+  const persistence = adapter.forCollection(resourceDef.collectionName);
+
+  if (!persistence.validateId(id)) {
+    throw new Error(`Invalid ${resourceDef.idField}`);
+  }
+
+  // Handle case where data arrives as a JSON string (common with some MCP clients)
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch (e) {
+      throw new Error(`Invalid JSON in data parameter: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // Validate update data against update schema (but merge with id field)
+  const updateData = { [resourceDef.idField]: id, ...data };
+  const validatedUpdate = parseWithEnhancedErrors(
+    resourceDef.updateSchema,
+    updateData,
+    resource_type,
+    'update'
+  );
+  
+  // Remove the id field from updates (it's used for querying, not updating)
+  const { [resourceDef.idField]: _, ...updates } = validatedUpdate;
+
+  const result = await persistence.updateById(
+    id,
+    {
+      set: {
+        ...updates,
+        updated_at: new Date(),
+        updated_by: 'mcp',
+      },
+    },
+    { returnDocument: 'after' }
+  );
+
+  if (!result) {
+    throw new Error(`${resourceDef.name} not found`);
+  }
+
+  const formatted = persistence.toExternal(result, resourceDef.idField);
+  const meta = buildHealthSummaryMeta(resourceDef.name as ResourceType, 'update', resourceDef, formatted);
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          ...formatted,
+        }, null, 2),
+      },
+    ],
+    ...(meta ? { _meta: meta } : {}),
+  };
+}
+
+export async function deleteResource(adapter: PersistenceAdapter, args: unknown) {
+  const validated = DeleteResourceSchema.parse(args);
+  const { resource_type, id } = validated;
+
+  const resourceDef = getResourceDefinition(resource_type);
+  if (!resourceDef) {
+    throw new Error(`Unknown resource type: ${resource_type}`);
+  }
+
+  const persistence = adapter.forCollection(resourceDef.collectionName);
+
+  if (!persistence.validateId(id)) {
+    throw new Error(`Invalid ${resourceDef.idField}`);
+  }
+
+  const result = await persistence.deleteById(id);
+
+  if (!result) {
+    throw new Error(`${resourceDef.name} not found`);
+  }
+
+  const formatted = persistence.toExternal(result, resourceDef.idField);
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          success: true,
+          [resourceDef.idField]: id,
+          deleted: {
+            ...formatted,
+          },
+        }, null, 2),
+      },
+    ],
+  };
+}
+
+export async function listResource(adapter: PersistenceAdapter, args: unknown) {
+  const validated = ListResourceSchema.parse(args);
+  let { resource_type, filters = {}, limit = 50 } = validated;
+
+  const resourceDef = getResourceDefinition(resource_type);
+  if (!resourceDef) {
+    throw new Error(`Unknown resource type: ${resource_type}`);
+  }
+
+  // Handle case where filters arrives as a JSON string (common with some MCP clients)
+  if (typeof filters === 'string') {
+    try {
+      filters = JSON.parse(filters);
+    } catch (e) {
+      throw new Error(`Invalid JSON in filters parameter: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+
+  // Ensure filters is an object, not undefined or null
+  if (!filters || typeof filters !== 'object') {
+    filters = {};
+  }
+
+  // If resource has a list schema, validate filters by merging with limit
+  let query: any = {};
+  if (resourceDef.listSchema) {
+    // Merge filters with limit for validation
+    const filterData = { ...filters, limit };
+    const validatedFilters = parseWithEnhancedErrors(
+      resourceDef.listSchema,
+      filterData,
+      resource_type,
+      'list'
+    );
+    query = { ...validatedFilters };
+    // Remove limit from query (we'll use it separately for MongoDB)
+    delete query.limit;
+  } else {
+    // Otherwise, use filters directly (with basic validation)
+    query = filters;
+  }
+
+  const persistence = adapter.forCollection(resourceDef.collectionName);
+  const records = await persistence.find(query, limit);
+  const formattedRecords = records.map((record) =>
+    persistence.toExternal(record, resourceDef.idField)
+  );
+
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          count: records.length,
+          [resourceDef.collectionName]: formattedRecords,
+        }, null, 2),
+      },
+    ],
+  };
+}

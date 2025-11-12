@@ -3,6 +3,6 @@ export {
   getListSchemaJson,
   getUpdateSchemaJson,
   zodToJsonSchemaForMCP,
-} from '@ac130/mcp-core';
+} from './core/schema-utils.js';
 
 

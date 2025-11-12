@@ -4,6 +4,6 @@ export {
   RESOURCE_REGISTRY,
   getAllResourceTypes,
   getResourceDefinition,
-} from '@ac130/mcp-core';
+} from './core/resource-registry.js';
 
 

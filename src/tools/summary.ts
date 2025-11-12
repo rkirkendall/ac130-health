@@ -1,7 +1,7 @@
 import {
   getHealthSummary as sharedGetHealthSummary,
   updateHealthSummary as sharedUpdateHealthSummary,
-} from '@ac130/mcp-core';
+} from '../core/summary.js';
 import type { Database } from '../db.js';
 import { MongoPersistenceAdapter } from '../persistence/mongo-persistence.js';
 

@@ -1,3 +1,3 @@
-export * from '@ac130/mcp-core';
+export * from './core/types.js';
 
 

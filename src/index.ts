@@ -21,7 +21,7 @@ import { createResource, getResource, updateResource, deleteResource, listResour
 import { updateHealthSummary, getHealthSummary } from './tools/summary.js';
 import { getAllResourceTypes, RESOURCE_REGISTRY } from './resource-registry.js';
 import { getCreateSchemaJson, getUpdateSchemaJson, getListSchemaJson } from './schema-utils.js';
-import { getSharedResourceMetadata, readSharedResource } from '@ac130/mcp-core';
+import { getSharedResourceMetadata, readSharedResource } from './core/resources.js';
 
 dotenv.config();
 

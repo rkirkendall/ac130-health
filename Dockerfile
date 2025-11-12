@@ -8,17 +8,16 @@ WORKDIR /app
 COPY ac130/package*.json ./
 COPY ac130/tsconfig.json ./
 
-# Copy shared package locally for installation
-COPY ac130-shared /ac130-shared
-
-# Install all dependencies (including dev dependencies for build)
+# Install all dependencies (including dev dependencies for build) without running lifecycle scripts yet
 RUN apk add --no-cache git && \
-    npm pkg set dependencies.@ac130/mcp-core="file:/ac130-shared" && \
-    npm install && \
+    npm install --ignore-scripts && \
     npm install -g tsx typescript
 
-# Copy source code
+# Copy source code after dependencies to leverage layer caching
 COPY ac130/src ./src
+
+# Run package prepare/build now that sources are present
+RUN npm run prepare
 
 # Build TypeScript
 RUN npm run build

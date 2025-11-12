@@ -5,6 +5,6 @@ export {
   type ReturnDocument,
   type UpdateOperations,
   type UpdateOptions,
-} from '@ac130/mcp-core';
+} from '../core/persistence.js';
 
 

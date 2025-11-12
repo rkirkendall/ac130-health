@@ -4,7 +4,7 @@ import {
   getResource as sharedGetResource,
   listResource as sharedListResource,
   updateResource as sharedUpdateResource,
-} from '@ac130/mcp-core';
+} from '../core/crud.js';
 import type { Database } from '../db.js';
 import { MongoPersistenceAdapter } from '../persistence/mongo-persistence.js';
 

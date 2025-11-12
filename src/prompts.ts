@@ -1,2 +1,2 @@
-export { CARE_MANAGER_BASE_PROMPT } from '@ac130/mcp-core';
+export { CARE_MANAGER_BASE_PROMPT } from './core/prompts.js';
 
