@@ -1,9 +1,9 @@
-import { getResourceDefinition, getAllResourceTypes } from './resource-registry.js';
+import { getResourceDefinition, getAllResourceTypes, RESOURCE_REGISTRY } from './resource-registry.js';
 import type { ResourceDefinition, ResourceType } from './resource-registry.js';
 import { z, type ZodType } from 'zod';
 import { zodToJsonSchemaForMCP } from './schema-utils.js';
 import type { PersistenceAdapter } from './persistence.js';
-import { HEALTH_SUMMARY_OUTLINE_URI } from './resources.js';
+import { HEALTH_SUMMARY_OUTLINE_URI, HEALTH_SUMMARY_OUTLINE_MARKDOWN } from './resources.js';
 
 /**
  * Extract helpful schema hints from validation errors
@@ -260,7 +260,60 @@ const ListResourceSchema = z.object({
   limit: z.number().optional(),
 });
 
-type HealthSummaryAction = 'create' | 'update';
+export type HealthSummaryAction = 'create' | 'update';
+
+type SamplingTextContent = {
+  type: 'text';
+  text: string;
+};
+
+type SamplingMessage = {
+  role: 'user' | 'assistant';
+  content: SamplingTextContent[];
+};
+
+export interface HealthSummarySamplingPrompt {
+  systemPrompt?: string;
+  messages: SamplingMessage[];
+  maxTokens: number;
+  temperature?: number;
+}
+
+export interface HealthSummarySamplingPlan {
+  patientId: string;
+  patientName?: string;
+  action: HealthSummaryAction;
+  resourceType: ResourceType;
+  reason: string;
+  prompt: HealthSummarySamplingPrompt;
+  previousSummary?: string | null;
+}
+
+export interface CrudRuntimeOptions {
+  onHealthSummaryPlan?: (plans: HealthSummarySamplingPlan[]) => Promise<void> | void;
+}
+
+interface PatientSnapshot {
+  patient: Record<string, unknown> | null;
+  summaryText: string | null;
+  resources: Record<string, Record<string, unknown>[]>;
+}
+
+const PATIENT_SUMMARY_RESOURCE_TYPES: ResourceType[] = [
+  'condition',
+  'prescription',
+  'lab',
+  'visit',
+  'treatment',
+  'allergy',
+  'immunization',
+  'vital_signs',
+  'procedure',
+  'imaging',
+  'insurance',
+];
+
+const MAX_RECORDS_PER_RESOURCE_FOR_SUMMARY = 25;
 
 interface SuggestedAction {
   tool: string;
@@ -537,6 +590,243 @@ function buildHealthSummaryMeta(
   };
 }
 
+function getPatientDisplayName(patient: Record<string, unknown> | null): string {
+  if (!patient || typeof patient !== 'object') {
+    return 'Unknown patient';
+  }
+
+  const name = (patient as Record<string, unknown>).name;
+  if (name && typeof name === 'object') {
+    const givenRaw = (name as Record<string, unknown>).given;
+    const family = typeof (name as Record<string, unknown>).family === 'string'
+      ? (name as Record<string, unknown>).family
+      : undefined;
+
+    let given: string | undefined;
+    if (Array.isArray(givenRaw)) {
+      given = (givenRaw as unknown[]).filter((value): value is string => typeof value === 'string').join(' ');
+    } else if (typeof givenRaw === 'string') {
+      given = givenRaw;
+    }
+
+    const full = [given, family].filter(Boolean).join(' ').trim();
+    if (full.length > 0) {
+      return full;
+    }
+  }
+
+  const externalRefValue = (patient as Record<string, unknown>).external_ref;
+  if (typeof externalRefValue === 'string' && externalRefValue.trim().length > 0) {
+    return externalRefValue;
+  }
+
+  const patientIdValue = (patient as Record<string, unknown>).patient_id;
+  if (typeof patientIdValue === 'string' && patientIdValue.trim().length > 0) {
+    return patientIdValue;
+  }
+
+  return 'Unknown patient';
+}
+
+function stringifyForPrompt(value: unknown): string {
+  try {
+    return JSON.stringify(
+      value,
+      (_key, val) => {
+        if (val instanceof Date) {
+          return val.toISOString();
+        }
+        return val;
+      },
+      2
+    );
+  } catch (error) {
+    return `<<Failed to serialize context: ${error instanceof Error ? error.message : String(error)}>>`;
+  }
+}
+
+async function buildPatientSnapshot(
+  adapter: PersistenceAdapter,
+  patientId: string
+): Promise<PatientSnapshot> {
+  const patientDef = RESOURCE_REGISTRY.patient;
+  const patientPersistence = adapter.forCollection(patientDef.collectionName);
+  const patientRecord = await patientPersistence.findById(patientId);
+  const patient = patientRecord
+    ? patientPersistence.toExternal(patientRecord, patientDef.idField)
+    : null;
+
+  const summaryPersistence = adapter.forCollection('active_summaries');
+  const summaryRecord = await summaryPersistence.findOne({ patient_id: patientId });
+  const summaryText =
+    summaryRecord && typeof summaryRecord.summary_text === 'string'
+      ? summaryRecord.summary_text
+      : null;
+
+  const resources: Record<string, Record<string, unknown>[]> = {};
+  await Promise.all(
+    PATIENT_SUMMARY_RESOURCE_TYPES.map(async (relatedType) => {
+      const relatedDef = RESOURCE_REGISTRY[relatedType];
+      const persistence = adapter.forCollection(relatedDef.collectionName);
+      const docs = await persistence.find({ patient_id: patientId }, MAX_RECORDS_PER_RESOURCE_FOR_SUMMARY);
+      resources[relatedType] = docs.map((doc) => persistence.toExternal(doc, relatedDef.idField));
+    })
+  );
+
+  return {
+    patient,
+    summaryText,
+    resources,
+  };
+}
+
+function buildHealthSummaryPrompt(params: {
+  patientId: string;
+  patientName: string;
+  action: HealthSummaryAction;
+  resourceType: ResourceType;
+  reason: string;
+  relevantRecords: Record<string, unknown>[];
+  snapshot: PatientSnapshot;
+}): HealthSummarySamplingPrompt {
+  const {
+    patientId,
+    patientName,
+    action,
+    resourceType,
+    reason,
+    relevantRecords,
+    snapshot,
+  } = params;
+
+  const actionDescription = action === 'create'
+    ? 'New clinical data was recorded'
+    : 'Existing clinical data was updated';
+
+  const existingSummary = snapshot.summaryText ?? 'No active health summary recorded yet.';
+  const newRecordsBlock = relevantRecords.length > 0
+    ? stringifyForPrompt(relevantRecords)
+    : 'No direct record payload was returned for this patient in this request.';
+
+  const snapshotBlock = stringifyForPrompt({
+    patient: snapshot.patient,
+    resources: snapshot.resources,
+  });
+
+  const promptSections = [
+    [
+      '## Task',
+      `Regenerate the active health summary for patient ${patientName} (${patientId}).`,
+      `Reason: ${reason}. ${actionDescription} in resource type "${resourceType}".`,
+    ].join('\n'),
+    [
+      '## Writing Instructions',
+      '- Follow the outline exactly as written below.',
+      '- Preserve previously documented clinical context unless superseded by new information.',
+      '- Use the full patient snapshot to ensure every major domain stays populated (conditions, medications, labs/imaging, care plan, risks).',
+      '- Call out when data is unchanged, unknown, or pending instead of omitting sections.',
+    ].join('\n'),
+    [
+      '## Health Summary Outline',
+      HEALTH_SUMMARY_OUTLINE_MARKDOWN,
+    ].join('\n'),
+    [
+      '## Existing Active Summary',
+      existingSummary,
+    ].join('\n'),
+    [
+      `## Newly ${action === 'create' ? 'Captured' : 'Updated'} Records`,
+      newRecordsBlock,
+    ].join('\n'),
+    [
+      '## Patient Snapshot Data',
+      snapshotBlock,
+    ].join('\n'),
+    [
+      '## Response Requirements',
+      '- Return only the updated health summary text.',
+      '- Do not include commentary, code fences, or explanations.',
+    ].join('\n'),
+  ];
+
+  const promptText = promptSections.join('\n\n');
+
+  const systemPrompt = [
+    'You are a clinical documentation specialist maintaining longitudinal health summaries.',
+    'Write in a professional, concise tone appropriate for care teams.',
+    'Highlight clinically meaningful updates first, organize information by the provided outline, and keep sections easy to scan.',
+  ].join(' ');
+
+  return {
+    systemPrompt,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: promptText,
+          },
+        ],
+      },
+    ],
+    maxTokens: 900,
+    temperature: 0.2,
+  };
+}
+
+async function buildHealthSummarySamplingPlans(
+  adapter: PersistenceAdapter,
+  resourceType: ResourceType,
+  action: HealthSummaryAction,
+  resourceDef: ResourceDefinition,
+  records: Record<string, unknown> | Record<string, unknown>[],
+  actionCopy?: { reason: string; summaryText: string }
+): Promise<HealthSummarySamplingPlan[]> {
+  if (!actionCopy) {
+    return [];
+  }
+
+  const patientIds = extractPatientIds(resourceType, resourceDef, records);
+  if (patientIds.length === 0) {
+    return [];
+  }
+
+  const arrayRecords = Array.isArray(records) ? records : [records];
+  const plans: HealthSummarySamplingPlan[] = [];
+
+  for (const patientId of patientIds) {
+    const relevantRecords = arrayRecords.filter((record) => {
+      const recordPatientId = extractPatientIdFromRecord(resourceType, resourceDef, record);
+      return recordPatientId === patientId;
+    });
+
+    const snapshot = await buildPatientSnapshot(adapter, patientId);
+    const patientName = getPatientDisplayName(snapshot.patient);
+    const prompt = buildHealthSummaryPrompt({
+      patientId,
+      patientName,
+      action,
+      resourceType,
+      reason: actionCopy.reason,
+      relevantRecords,
+      snapshot,
+    });
+
+    plans.push({
+      patientId,
+      patientName,
+      action,
+      resourceType,
+      reason: actionCopy.reason,
+      prompt,
+      previousSummary: snapshot.summaryText,
+    });
+  }
+
+  return plans;
+}
+
 function buildDuplicateCheckError(resourceType: ResourceType): string {
   const hints = DUPLICATE_FILTER_HINTS[resourceType];
   const hintText = hints && hints.length > 0
@@ -549,7 +839,11 @@ function buildDuplicateCheckError(resourceType: ResourceType): string {
   ].filter(Boolean).join('\n');
 }
 
-export async function createResource(adapter: PersistenceAdapter, args: unknown) {
+export async function createResource(
+  adapter: PersistenceAdapter,
+  args: unknown,
+  options?: CrudRuntimeOptions
+) {
   const validated = CreateResourceSchema.parse(args);
   let { resource_type, data, duplicate_check_confirmed } = validated;
 
@@ -604,7 +898,31 @@ export async function createResource(adapter: PersistenceAdapter, args: unknown)
       persistence.toExternal(record, resourceDef.idField)
     );
 
-    const meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
+    let meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
+    const copy = HEALTH_SUMMARY_SUGGESTION_COPY[resourceType];
+    const plans = copy
+      ? await buildHealthSummarySamplingPlans(
+          adapter,
+          resourceType,
+          'create',
+          resourceDef,
+          formatted,
+          copy.create
+        )
+      : [];
+
+    if (plans.length > 0) {
+      await options?.onHealthSummaryPlan?.(plans);
+      meta = meta ?? {};
+      meta.health_summary_sampling = {
+        status: 'requested',
+        action: 'create',
+        patients: plans.map((plan) => ({
+          patient_id: plan.patientId,
+          reason: plan.reason,
+        })),
+      };
+    }
 
     return {
       content: [
@@ -631,7 +949,31 @@ export async function createResource(adapter: PersistenceAdapter, args: unknown)
 
   const inserted = await persistence.create(record);
   const formatted = persistence.toExternal(inserted, resourceDef.idField);
-  const meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
+  let meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
+  const copy = HEALTH_SUMMARY_SUGGESTION_COPY[resourceType];
+  const plans = copy
+    ? await buildHealthSummarySamplingPlans(
+        adapter,
+        resourceType,
+        'create',
+        resourceDef,
+        formatted,
+        copy.create
+      )
+    : [];
+
+  if (plans.length > 0) {
+    await options?.onHealthSummaryPlan?.(plans);
+    meta = meta ?? {};
+    meta.health_summary_sampling = {
+      status: 'requested',
+      action: 'create',
+      patients: plans.map((plan) => ({
+        patient_id: plan.patientId,
+        reason: plan.reason,
+      })),
+    };
+  }
 
   return {
     content: [
@@ -681,7 +1023,11 @@ export async function getResource(adapter: PersistenceAdapter, args: unknown) {
   };
 }
 
-export async function updateResource(adapter: PersistenceAdapter, args: unknown) {
+export async function updateResource(
+  adapter: PersistenceAdapter,
+  args: unknown,
+  options?: CrudRuntimeOptions
+) {
   const validated = UpdateResourceSchema.parse(args);
   let { resource_type, id, data } = validated;
 
@@ -734,7 +1080,32 @@ export async function updateResource(adapter: PersistenceAdapter, args: unknown)
   }
 
   const formatted = persistence.toExternal(result, resourceDef.idField);
-  const meta = buildHealthSummaryMeta(resourceDef.name as ResourceType, 'update', resourceDef, formatted);
+  const resourceTypeForMeta = resourceDef.name as ResourceType;
+  let meta = buildHealthSummaryMeta(resourceTypeForMeta, 'update', resourceDef, formatted);
+  const copy = HEALTH_SUMMARY_SUGGESTION_COPY[resourceTypeForMeta];
+  const plans = copy
+    ? await buildHealthSummarySamplingPlans(
+        adapter,
+        resourceTypeForMeta,
+        'update',
+        resourceDef,
+        formatted,
+        copy.update
+      )
+    : [];
+
+  if (plans.length > 0) {
+    await options?.onHealthSummaryPlan?.(plans);
+    meta = meta ?? {};
+    meta.health_summary_sampling = {
+      status: 'requested',
+      action: 'update',
+      patients: plans.map((plan) => ({
+        patient_id: plan.patientId,
+        reason: plan.reason,
+      })),
+    };
+  }
 
   return {
     content: [

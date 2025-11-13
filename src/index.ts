@@ -11,6 +11,7 @@ import {
   GetPromptRequestSchema,
   ListResourcesRequestSchema,
   ReadResourceRequestSchema,
+  CreateMessageResultSchema,
 } from '@modelcontextprotocol/sdk/types.js';
 import dotenv from 'dotenv';
 import { Database } from './db.js';
@@ -22,6 +23,7 @@ import { updateHealthSummary, getHealthSummary } from './tools/summary.js';
 import { getAllResourceTypes, RESOURCE_REGISTRY } from './resource-registry.js';
 import { getCreateSchemaJson, getUpdateSchemaJson, getListSchemaJson } from './schema-utils.js';
 import { getSharedResourceMetadata, readSharedResource } from './core/resources.js';
+import type { CrudRuntimeOptions, HealthSummarySamplingPlan } from './core/crud.js';
 
 dotenv.config();
 
@@ -42,11 +44,186 @@ const server = new Server(
       tools: {},
       prompts: {},
       resources: {},
+      sampling: {},
     },
   }
 );
 
 const db = new Database(MONGO_URI, DB_NAME);
+
+type SamplingExecutionStatus = 'updated' | 'failed' | 'skipped';
+
+interface HealthSummarySamplingStatus {
+  patient_id: string;
+  status: SamplingExecutionStatus;
+  reason: string;
+  model?: string;
+  stop_reason?: string | null;
+}
+
+function mergeSamplingMeta(result: any, statuses: HealthSummarySamplingStatus[]): void {
+  if (!statuses.length) {
+    return;
+  }
+
+  const existingMeta = result._meta ? { ...result._meta } : {};
+  const samplingMeta =
+    existingMeta.health_summary_sampling && typeof existingMeta.health_summary_sampling === 'object'
+      ? { ...existingMeta.health_summary_sampling }
+      : {};
+
+  const statusSummary: SamplingExecutionStatus =
+    statuses.some((status) => status.status === 'updated')
+      ? 'updated'
+      : statuses.some((status) => status.status === 'failed')
+        ? 'failed'
+        : 'skipped';
+
+  samplingMeta.status = statusSummary === 'updated' ? 'completed' : statusSummary;
+  samplingMeta.executed_at = new Date().toISOString();
+  samplingMeta.execution = statuses;
+
+  existingMeta.health_summary_sampling = samplingMeta;
+  result._meta = existingMeta;
+}
+
+async function executeHealthSummarySampling(
+  plans: HealthSummarySamplingPlan[],
+  extra: {
+    signal?: AbortSignal;
+    sendRequest?: typeof server['request'];
+    requestId?: number | string;
+  }
+): Promise<HealthSummarySamplingStatus[]> {
+  const statuses: HealthSummarySamplingStatus[] = [];
+
+  if (plans.length === 0) {
+    return statuses;
+  }
+
+  const clientCapabilities = server.getClientCapabilities();
+  if (!clientCapabilities?.sampling) {
+    for (const plan of plans) {
+      statuses.push({
+        patient_id: plan.patientId,
+        status: 'skipped',
+        reason: 'Client does not advertise the sampling capability.',
+      });
+    }
+    return statuses;
+  }
+
+  if (typeof extra?.sendRequest !== 'function') {
+    for (const plan of plans) {
+      statuses.push({
+        patient_id: plan.patientId,
+        status: 'failed',
+        reason: 'Sampling request channel unavailable for this transport.',
+      });
+    }
+    return statuses;
+  }
+
+  for (const plan of plans) {
+    if (extra.signal?.aborted) {
+      statuses.push({
+        patient_id: plan.patientId,
+        status: 'failed',
+        reason: 'Sampling aborted before execution.',
+      });
+      continue;
+    }
+
+    try {
+      const samplingParams: Record<string, unknown> = {
+        messages: plan.prompt.messages,
+        maxTokens: plan.prompt.maxTokens,
+      };
+
+      if (plan.prompt.systemPrompt) {
+        samplingParams.systemPrompt = plan.prompt.systemPrompt;
+      }
+
+      if (plan.prompt.temperature !== undefined) {
+        samplingParams.temperature = plan.prompt.temperature;
+      }
+
+      const samplingResult = await extra.sendRequest(
+        {
+          method: 'sampling/createMessage',
+          params: samplingParams,
+        },
+        CreateMessageResultSchema,
+        {
+          timeout: 120_000,
+        }
+      );
+
+      if (samplingResult.content.type !== 'text') {
+        throw new Error(`Sampling returned unsupported content type: ${samplingResult.content.type}`);
+      }
+
+      const summaryText = samplingResult.content.text.trim();
+      if (!summaryText) {
+        throw new Error('Sampling completed but returned empty text.');
+      }
+
+      await updateHealthSummary(db, {
+        patient_id: plan.patientId,
+        summary_text: summaryText,
+      });
+
+      try {
+        await server.sendResourceUpdated({ uri: `summary://patient/${plan.patientId}` });
+      } catch (notificationError) {
+        console.warn('Failed to emit resource update notification:', notificationError);
+      }
+
+      statuses.push({
+        patient_id: plan.patientId,
+        status: 'updated',
+        reason: 'Health summary regenerated via sampling.',
+        model: samplingResult.model,
+        stop_reason: samplingResult.stopReason ?? undefined,
+      });
+    } catch (error) {
+      statuses.push({
+        patient_id: plan.patientId,
+        status: 'failed',
+        reason: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  return statuses;
+}
+
+async function runHealthSummarySampling(
+  plans: HealthSummarySamplingPlan[],
+  result: any,
+  extra: {
+    signal?: AbortSignal;
+    sendRequest?: typeof server['request'];
+    requestId?: number | string;
+  }
+): Promise<void> {
+  if (plans.length === 0) {
+    return;
+  }
+
+  try {
+    const statuses = await executeHealthSummarySampling(plans, extra ?? {});
+    mergeSamplingMeta(result, statuses);
+  } catch (error) {
+    mergeSamplingMeta(result, [
+      {
+        patient_id: plans[0]?.patientId ?? 'unknown',
+        status: 'failed',
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    ]);
+  }
+}
 
 // Generate resource type descriptions
 const resourceTypes = getAllResourceTypes();
@@ -222,24 +399,54 @@ EXAMPLE - Batch Create Labs:
 });
 
 // Handle tool calls
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
+server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
   try {
-    switch (request.params.name) {
+    const toolName = request.params.name;
+    const healthSummaryPlans: HealthSummarySamplingPlan[] = [];
+    const crudOptions: CrudRuntimeOptions = {
+      onHealthSummaryPlan: async (plans) => {
+        healthSummaryPlans.push(...plans);
+      },
+    };
+
+    let result;
+
+    switch (toolName) {
       case 'create_resource':
-        return await createResource(db, request.params.arguments);
+        result = await createResource(db, request.params.arguments, crudOptions);
+        break;
       case 'get_resource':
-        return await getResource(db, request.params.arguments);
+        result = await getResource(db, request.params.arguments);
+        break;
       case 'update_resource':
-        return await updateResource(db, request.params.arguments);
+        result = await updateResource(db, request.params.arguments, crudOptions);
+        break;
       case 'delete_resource':
-        return await deleteResource(db, request.params.arguments);
+        result = await deleteResource(db, request.params.arguments);
+        break;
       case 'list_resource':
-        return await listResource(db, request.params.arguments);
+        result = await listResource(db, request.params.arguments);
+        break;
       case 'update_health_summary':
-        return await updateHealthSummary(db, request.params.arguments);
+        result = await updateHealthSummary(db, request.params.arguments);
+        break;
       default:
-        throw new Error(`Unknown tool: ${request.params.name}`);
+        throw new Error(`Unknown tool: ${toolName}`);
     }
+
+    if (
+      result &&
+      healthSummaryPlans.length > 0 &&
+      (toolName === 'create_resource' || toolName === 'update_resource')
+    ) {
+      await runHealthSummarySampling(healthSummaryPlans, result, {
+        signal: extra?.signal,
+        sendRequest: extra?.sendRequest,
+        requestId: extra?.requestId,
+      });
+    }
+
+    return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return {

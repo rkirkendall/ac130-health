@@ -11,7 +11,7 @@ export interface SharedResourceContent extends SharedResourceMetadata {
 
 export const HEALTH_SUMMARY_OUTLINE_URI = 'guide://health_summary/outline';
 
-const HEALTH_SUMMARY_OUTLINE_MARKDOWN = `# Health Summary Outline
+export const HEALTH_SUMMARY_OUTLINE_MARKDOWN = `# Health Summary Outline
 
 Use this structure whenever you generate or refresh a patient's health summary. Keep the tone clinical but approachable, write in short paragraphs or bullet points, and highlight the most actionable details first.
 

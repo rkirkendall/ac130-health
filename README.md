@@ -21,6 +21,11 @@ npm install
 
 `run-mcp-docker.sh` reuses the long-lived container built by Docker (which already runs `npm run build` inside the image) and executes `dist/index.js` inside it. If you change TypeScript source, rebuild the image with `docker compose build mcp-server` so the container picks up the new `dist/`.
 
+### Health Summary Regeneration
+- CRUD tool responses now include `_meta.health_summary_sampling` metadata with the context needed to regenerate a patient’s active summary. When an MCP client supports `sampling/createMessage`, the server automatically packages a prompt with the updated records, the prior summary, and the shared outline, then writes the returned text via `update_health_summary`.
+- Clients that do not advertise the sampling capability keep working as before—they simply receive the metadata (plus the existing `_meta.suggested_actions` hint) and can choose to handle summary refreshes on their own.
+- Session output is mirrored to `mcp.log` whenever you launch the server with `./scripts/run-mcp-docker.sh`, which makes it easier to audit sampling runs during debugging.
+
 ## MCP Configuration
 With the MCP server running via `./scripts/run-mcp-docker.sh`, point Claude Desktop or Cursor at the script:
 
