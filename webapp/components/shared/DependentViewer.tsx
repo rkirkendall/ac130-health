@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import {
   Select,
@@ -10,31 +10,35 @@ import {
   SelectValue,
 } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
-import type { Patient, RecordCount } from './types';
-import { formatDateValue, formatFieldValue, formatTitleCandidate } from './utils';
+import type { Dependent, RecordCount, PhiVaultEntry } from './types';
+import {
+  formatDateValue,
+  formatFieldValue,
+  formatTitleCandidate,
+  humanNameToString,
+} from './utils';
 
-interface PatientViewerProps {
+interface DependentViewerProps {
   apiBaseUrl?: string;
 }
 
+type PhiState = 'hidden' | 'loading' | 'visible' | 'error';
+
 const FIELD_LABEL_OVERRIDES: Record<string, string> = {
-  name: 'Name',
+  record_identifier: 'Pseudonym',
   full_name: 'Name',
-  patient_name: 'Patient Name',
+  patient_name: 'Name',
   provider_name: 'Provider Name',
-  dob: 'Date of Birth',
-  date_of_birth: 'Date of Birth',
-  sex: 'Sex',
-  gender: 'Gender',
-  created_at: 'Created At',
-  updated_at: 'Updated At',
   external_ref: 'External Reference',
+  created_at: 'Created',
+  updated_at: 'Updated',
 };
 
 const HIDDEN_FIELD_KEYS = new Set([
   '_id',
   'id',
-  'patient_id',
+  'dependent_id',
+  'phi_vault_id',
   'record_id',
   'created_by',
   'updated_by',
@@ -66,7 +70,7 @@ async function parseJsonResponse<T>(res: Response): Promise<T | null> {
     throw new Error(
       `Request failed with ${res.status} ${res.statusText}${
         message ? ` - ${message}` : ''
-      }`,
+      }`
     );
   }
 
@@ -77,99 +81,245 @@ async function parseJsonResponse<T>(res: Response): Promise<T | null> {
 
   try {
     return JSON.parse(text) as T;
-  } catch (error) {
+  } catch {
     throw new Error('Unexpected non-JSON response');
   }
 }
 
-export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
-  const [patients, setPatients] = useState<Patient[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<string>('');
+const formatContact = (contact?: { phone?: string; email?: string }) => {
+  if (!contact) return null;
+  return [contact.email, contact.phone].filter(Boolean).join(' • ') || null;
+};
+
+const formatAddress = (address?: PhiVaultEntry['address']) => {
+  if (!address) return null;
+  const parts = [
+    address.line1,
+    address.line2,
+    [address.city, address.state].filter(Boolean).join(', '),
+    address.postal_code,
+    address.country,
+  ]
+    .map(part => (part ? part.trim() : ''))
+    .filter(Boolean);
+  return parts.length > 0 ? parts.join('\n') : null;
+};
+
+export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
+  const [dependents, setDependents] = useState<Dependent[]>([]);
+  const [selectedDependent, setSelectedDependent] = useState<string>('');
   const [recordCounts, setRecordCounts] = useState<RecordCount[]>([]);
   const [selectedRecordType, setSelectedRecordType] = useState<string>('');
   const [records, setRecords] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch patients on mount
+  const [phiState, setPhiState] = useState<PhiState>('hidden');
+  const [phiEntry, setPhiEntry] = useState<PhiVaultEntry | null>(null);
+  const [phiError, setPhiError] = useState<string | null>(null);
+
   useEffect(() => {
-    fetch(`${apiBaseUrl}/api/patients`)
-      .then(parseJsonResponse<Patient[]>)
+    fetch(`${apiBaseUrl}/api/dependents`)
+      .then(parseJsonResponse<Dependent[]>)
       .then(data => {
         const list = Array.isArray(data) ? data : [];
-        setPatients(list);
+        setDependents(list);
         if (list.length > 0) {
-          setSelectedPatient(list[0]._id);
+          setSelectedDependent(list[0]._id);
         }
         setLoading(false);
       })
       .catch(err => {
-        console.error('Error fetching patients:', err);
+        console.error('Error fetching dependents:', err);
         setLoading(false);
       });
   }, [apiBaseUrl]);
 
-  // Fetch record counts when patient changes
   useEffect(() => {
-    if (selectedPatient) {
-      fetch(`${apiBaseUrl}/api/patients/${selectedPatient}/counts`)
+    if (selectedDependent) {
+      fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}/counts`)
         .then(parseJsonResponse<RecordCount[]>)
         .then(data => {
           const counts = Array.isArray(data) ? data : [];
           setRecordCounts(counts);
-          // Always select the first record type (Patient Profile) by default
-          if (counts.length > 0) {
-            setSelectedRecordType(counts[0].type);
-          } else {
-            setSelectedRecordType('');
-          }
+          setSelectedRecordType(counts[0]?.type ?? '');
         })
         .catch(err => console.error('Error fetching counts:', err));
     }
-  }, [selectedPatient, apiBaseUrl]);
+  }, [selectedDependent, apiBaseUrl]);
 
-  // Fetch records when record type changes
   useEffect(() => {
-    if (selectedPatient && selectedRecordType) {
-      fetch(`${apiBaseUrl}/api/patients/${selectedPatient}/records/${selectedRecordType}`)
+    if (selectedDependent && selectedRecordType) {
+      fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`)
         .then(parseJsonResponse<any[]>)
         .then(data => setRecords(Array.isArray(data) ? data : []))
         .catch(err => console.error('Error fetching records:', err));
     }
-  }, [selectedPatient, selectedRecordType, apiBaseUrl]);
+  }, [selectedDependent, selectedRecordType, apiBaseUrl]);
 
-  const getPatientName = (patient: Patient) => {
-    if (patient.name?.given || patient.name?.family) {
-      return `${patient.name.given || ''} ${patient.name.family || ''}`.trim();
+  useEffect(() => {
+    setPhiState('hidden');
+    setPhiEntry(null);
+    setPhiError(null);
+  }, [selectedDependent]);
+
+  const selectedDependentDetails = useMemo(
+    () => dependents.find(dependent => dependent._id === selectedDependent),
+    [dependents, selectedDependent]
+  );
+
+  const handleRevealPhi = async () => {
+    if (!selectedDependentDetails?.has_phi) {
+      setPhiState('visible');
+      setPhiEntry(null);
+      return;
     }
-    return patient.external_ref || 'Unknown Patient';
+
+    if (phiState === 'visible') {
+      setPhiState('hidden');
+      setPhiEntry(null);
+      setPhiError(null);
+      return;
+    }
+
+    setPhiState('loading');
+    setPhiError(null);
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/phi`
+      );
+      const data = await parseJsonResponse<PhiVaultEntry>(response);
+      setPhiEntry(data);
+      setPhiState('visible');
+    } catch (error) {
+      console.error('Error revealing PHI:', error);
+      setPhiError(error instanceof Error ? error.message : String(error));
+      setPhiState('error');
+    }
   };
 
-  const selectedPatientDetails = patients.find(patient => patient._id === selectedPatient);
+  const renderPhiVaultSection = () => {
+    if (!selectedDependentDetails) {
+      return null;
+    }
 
-  const renderHealthSummary = () => {
-    if (!selectedPatientDetails) {
+    const buttonLabel =
+      phiState === 'visible' ? 'Hide PHI' : 'Reveal PHI';
+
+    let body: React.ReactNode = (
+      <p className="text-sm text-muted-foreground">
+        PHI is stored securely and excluded from MCP responses. Select "Reveal PHI" to view it in this app.
+      </p>
+    );
+
+    if (!selectedDependentDetails.has_phi) {
+      body = (
+        <p className="text-sm text-muted-foreground">
+          No PHI has been captured for this dependent yet.
+        </p>
+      );
+    } else if (phiState === 'loading') {
+      body = <p className="text-sm text-muted-foreground">Loading PHI…</p>;
+    } else if (phiState === 'error') {
+      body = (
+        <p className="text-sm text-red-600">
+          Failed to load PHI.{phiError ? ` ${phiError}` : ''}
+        </p>
+      );
+    } else if (phiState === 'visible') {
+      const fields = [
+        {
+          label: 'Legal Name',
+          value: humanNameToString(phiEntry?.legal_name),
+        },
+        { label: 'Preferred Name', value: phiEntry?.preferred_name },
+        { label: 'Relationship Note', value: phiEntry?.relationship_note },
+        {
+          label: 'Full Date of Birth',
+          value: formatDateValue(phiEntry?.full_dob) ?? phiEntry?.full_dob,
+        },
+        {
+          label: 'Birth Year',
+          value: phiEntry?.birth_year?.toString() ?? null,
+        },
+        { label: 'Sex', value: phiEntry?.sex },
+        { label: 'Contact', value: formatContact(phiEntry?.contact) },
+        { label: 'Address', value: formatAddress(phiEntry?.address) },
+      ].filter(field => hasRenderableValue(field.value));
+
+      body =
+        fields.length > 0 ? (
+          <div className="mt-4 space-y-3">
+            {fields.map(field => (
+              <div key={field.label} className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {field.label}
+                </p>
+                <p className="text-sm whitespace-pre-line">{field.value}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No PHI fields are populated for this dependent.
+          </p>
+        );
+    }
+
+    return (
+      <div className="rounded-lg border border-dashed border-slate-300 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold">PHI Vault</p>
+            <p className="text-xs text-muted-foreground">
+              {selectedDependentDetails.has_phi
+                ? 'Sensitive identifiers are vaulted separately.'
+                : 'Vault entry empty'}
+            </p>
+          </div>
+          <button
+            className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
+            onClick={handleRevealPhi}
+          >
+            {buttonLabel}
+          </button>
+        </div>
+        <div className="mt-3">{body}</div>
+      </div>
+    );
+  };
+
+  const renderDependentProfile = () => {
+    if (!selectedDependentDetails) {
       return (
         <Card>
           <CardContent className="p-6">
-            <p className="text-muted-foreground">Select a patient to view their health summary.</p>
+            <p className="text-muted-foreground">
+              Select a dependent to view their information.
+            </p>
           </CardContent>
         </Card>
       );
     }
 
-    const contactParts = [
-      selectedPatientDetails.contact?.email,
-      selectedPatientDetails.contact?.phone,
-    ].filter((part): part is string => Boolean(part));
-
-    const patientFields = [
-      { label: 'Patient Name', value: getPatientName(selectedPatientDetails) },
-      { label: 'Date of Birth', value: formatDateValue(selectedPatientDetails.dob) },
-      { label: 'Sex', value: selectedPatientDetails.sex },
-      { label: 'Contact', value: contactParts.join(' • ') || null },
-      { label: 'External Reference', value: selectedPatientDetails.external_ref },
-      { label: 'Created', value: formatDateValue(selectedPatientDetails.created_at) },
-      { label: 'Updated', value: formatDateValue(selectedPatientDetails.updated_at) },
+    const baseFields = [
+      {
+        label: 'Pseudonym',
+        value: selectedDependentDetails.record_identifier,
+      },
+      { label: 'External Reference', value: selectedDependentDetails.external_ref },
+      {
+        label: 'Archived',
+        value: selectedDependentDetails.archived ? 'Yes' : 'No',
+      },
+      {
+        label: 'Created',
+        value: formatDateValue(selectedDependentDetails.created_at),
+      },
+      {
+        label: 'Updated',
+        value: formatDateValue(selectedDependentDetails.updated_at),
+      },
     ].filter(field => hasRenderableValue(field.value));
 
     const latestSummary = records[0];
@@ -177,7 +327,7 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Patient Profile</CardTitle>
+          <CardTitle className="text-lg">Dependent Profile</CardTitle>
           {latestSummary ? (
             <p className="text-sm text-muted-foreground">
               Health summary updated {formatDateValue(latestSummary.updated_at) ?? 'N/A'}
@@ -185,9 +335,9 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
           ) : null}
         </CardHeader>
         <CardContent className="space-y-6">
-          {patientFields.length > 0 ? (
+          {baseFields.length > 0 ? (
             <div className="space-y-4">
-              {patientFields.map(field => (
+              {baseFields.map(field => (
                 <div key={field.label} className="space-y-1">
                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                     {field.label}
@@ -197,7 +347,7 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
               ))}
             </div>
           ) : null}
-
+          {renderPhiVaultSection()}
           {records.length > 0 ? (
             <div className="space-y-4">
               <p className="text-sm font-semibold text-slate-900">Health Summary</p>
@@ -214,7 +364,7 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No health summary has been recorded for this patient.
+              No health summary has been recorded for this dependent.
             </p>
           )}
         </CardContent>
@@ -225,37 +375,36 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">Loading...</p>
+        <p className="text-lg">Loading…</p>
       </div>
     );
   }
 
-  if (patients.length === 0) {
+  if (dependents.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">No patients found in database.</p>
+        <p className="text-lg">No dependents found in database.</p>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Header with Patient Selector */}
       <header className="border-b bg-background">
         <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Patient
+              Dependent
             </p>
             <div className="w-full min-w-0 sm:w-64">
-              <Select value={selectedPatient} onValueChange={setSelectedPatient}>
+              <Select value={selectedDependent} onValueChange={setSelectedDependent}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select patient" />
+                  <SelectValue placeholder="Select dependent" />
                 </SelectTrigger>
                 <SelectContent>
-                  {patients.map(patient => (
-                    <SelectItem key={patient._id} value={patient._id}>
-                      {getPatientName(patient)}
+                  {dependents.map(dependent => (
+                    <SelectItem key={dependent._id} value={dependent._id}>
+                      {dependent.record_identifier}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -265,9 +414,7 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
         </div>
       </header>
 
-      {/* Main Content Area */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar */}
         <aside className="w-64 border-r bg-background">
           <ScrollArea className="h-full">
             <div className="p-4 space-y-2">
@@ -302,7 +449,6 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
           </ScrollArea>
         </aside>
 
-        {/* Main View */}
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-6">
@@ -311,7 +457,7 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
               </h2>
 
               {selectedRecordType === 'active_summaries' ? (
-                renderHealthSummary()
+                renderDependentProfile()
               ) : records.length === 0 ? (
                 <Card>
                   <CardContent className="p-6">
@@ -325,7 +471,9 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
                       <CardHeader>
                         <CardTitle className="text-lg">{record.test_name}</CardTitle>
                         <div className="flex gap-4 text-sm text-muted-foreground">
-                          {record.result_date && <span>Date: {formatDateValue(record.result_date) ?? record.result_date}</span>}
+                          {record.result_date && (
+                            <span>Date: {formatDateValue(record.result_date) ?? record.result_date}</span>
+                          )}
                           {record.status && <span>Status: {record.status}</span>}
                         </div>
                       </CardHeader>
@@ -348,14 +496,20 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
                                     <td className="py-2 px-3 text-sm">{result.test}</td>
                                     <td className="py-2 px-3 text-sm font-medium">{result.value ?? 'N/A'}</td>
                                     <td className="py-2 px-3 text-sm">{result.unit ?? ''}</td>
-                                    <td className="py-2 px-3 text-sm text-muted-foreground">{result.reference_range ?? 'N/A'}</td>
+                                    <td className="py-2 px-3 text-sm text-muted-foreground">
+                                      {result.reference_range ?? 'N/A'}
+                                    </td>
                                     <td className="py-2 px-3 text-sm">
                                       {result.flag && (
-                                        <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                          result.flag.toLowerCase() === 'high' ? 'bg-red-100 text-red-800' :
-                                          result.flag.toLowerCase() === 'low' ? 'bg-blue-100 text-blue-800' :
-                                          'bg-yellow-100 text-yellow-800'
-                                        }`}>
+                                        <span
+                                          className={`px-2 py-1 rounded text-xs font-medium ${
+                                            result.flag.toLowerCase() === 'high'
+                                              ? 'bg-red-100 text-red-800'
+                                              : result.flag.toLowerCase() === 'low'
+                                              ? 'bg-blue-100 text-blue-800'
+                                              : 'bg-yellow-100 text-yellow-800'
+                                          }`}
+                                        >
                                           {result.flag}
                                         </span>
                                       )}
@@ -382,7 +536,9 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
                                     <td className="py-2 px-3 text-sm">{component.name}</td>
                                     <td className="py-2 px-3 text-sm font-medium">{component.value ?? 'N/A'}</td>
                                     <td className="py-2 px-3 text-sm">{component.unit ?? ''}</td>
-                                    <td className="py-2 px-3 text-sm text-muted-foreground">{component.reference_range ?? 'N/A'}</td>
+                                    <td className="py-2 px-3 text-sm text-muted-foreground">
+                                      {component.reference_range ?? 'N/A'}
+                                    </td>
                                   </tr>
                                 ))}
                               </tbody>
@@ -399,73 +555,40 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
                 <div className="space-y-4">
                   {records.map((record, index) => {
                     const titleCandidate =
-                      [
-                        record.medication_name,
-                        record.test_name,
-                        record.condition_name,
-                        record.clinical_status,
-                        record.display,
-                        record.name,
-                        record.allergen,
-                        record.vaccine_name,
-                        record.procedure_name,
-                        record.study_type,
-                        record.provider_name,
-                        record.title,
-                      ]
-                        .map(value => formatTitleCandidate(value))
-                        .find((value): value is string => Boolean(value)) ??
-                      formatTitleCandidate(record) ??
+                      formatTitleCandidate(record.name) ||
+                      formatTitleCandidate(record.title) ||
+                      formatTitleCandidate(record.description) ||
                       `Record ${index + 1}`;
 
                     return (
                       <Card key={record._id || index}>
                         <CardHeader>
-                          <CardTitle className="text-lg">
-                            {titleCandidate}
-                          </CardTitle>
+                          <CardTitle className="text-lg">{titleCandidate}</CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            Updated {formatDateValue(record.updated_at) ?? 'N/A'}
+                          </p>
                         </CardHeader>
-                        <CardContent>
-                          <div className="space-y-4">
-                            {Object.entries(record)
-                              .map(([key, value]) => {
-                                if (shouldHideField(key)) {
-                                  return null;
-                                }
+                        <CardContent className="space-y-3">
+                          {Object.entries(record)
+                            .filter(([key]) => !shouldHideField(key))
+                            .map(([key, value]) => {
+                              const label =
+                                FIELD_LABEL_OVERRIDES[key] || key.replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase());
+                              const formattedValue = formatFieldValue(key, value);
 
-                                const displayValue = formatFieldValue(key, value);
-                                if (!hasRenderableValue(displayValue)) {
-                                  return null;
-                                }
+                              if (!hasRenderableValue(formattedValue)) {
+                                return null;
+                              }
 
-                                const label =
-                                  FIELD_LABEL_OVERRIDES[key.toLowerCase()] ??
-                                  key
-                                    .replace(/_/g, ' ')
-                                    .replace(/\b\w/g, l => l.toUpperCase());
-
-                                return { key, label, displayValue };
-                              })
-                              .filter(
-                                (entry): entry is { key: string; label: string; displayValue: string } =>
-                                  Boolean(entry),
-                              )
-                              .map(({ key, label, displayValue }, index) => (
-                                <div
-                                  key={key}
-                                  className={`space-y-1 border-t border-slate-100 pt-4 ${
-                                    index === 0 ? 'border-t-0 pt-0' : ''
-                                  }`}
-                                >
+                              return (
+                                <div key={key} className="space-y-1">
                                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     {label}
                                   </p>
-                                  <p className="text-sm whitespace-pre-wrap break-words">
-                                    {displayValue}
-                                  </p>
+                                  <p className="text-sm whitespace-pre-line">{formattedValue}</p>
                                 </div>
-                              ))}
-                          </div>
+                              );
+                            })}
                         </CardContent>
                       </Card>
                     );
@@ -479,3 +602,4 @@ export function PatientViewer({ apiBaseUrl = '' }: PatientViewerProps) {
     </div>
   );
 }
+

@@ -8,7 +8,7 @@ Keep the full pipeline aligned: MongoDB stores `ObjectId` values, external APIs 
 
 ## Non-Negotiables
 
-- **Database**: Every ID field saved to MongoDB (e.g. `_id`, `patient_id`, `provider_id`) must be an `ObjectId`, never a string.
+- **Database**: Every ID field saved to MongoDB (e.g. `_id`, `dependent_id`, `provider_id`) must be an `ObjectId`, never a string.
 - **API boundary**: Anything entering or leaving MCP tools must expose IDs as strings.
 - **Conversion**: Tool handlers convert strings → `ObjectId` before writes; the persistence layer converts known filter fields → `ObjectId` for reads and stringifies only `_id`/primary aliases on return.
 - **List schemas**: If a resource supports filtered listing, it must declare a `listSchema` that includes every ID filter. No schema, no guarantees.
@@ -16,7 +16,7 @@ Keep the full pipeline aligned: MongoDB stores `ObjectId` values, external APIs 
 ## Layer Responsibilities
 
 - **Zod schemas (`src/types.ts`)**  
-  Declare all input IDs as strings and provide a list schema for filters (`patient_id`, `provider_id`, etc.).
+  Declare all input IDs as strings and provide a list schema for filters (`dependent_id`, `provider_id`, etc.).
 
 - **Resource registry (`src/resource-registry.ts`)**  
   Register the create/update/get/list schemas so generic CRUD handlers can validate and convert consistently.
@@ -47,7 +47,7 @@ Keep the full pipeline aligned: MongoDB stores `ObjectId` values, external APIs 
 
 ```typescript
 await listResource(db, { resource_type: "condition", filters: {} });
-await listResource(db, { resource_type: "condition", filters: { patient_id } });
+await listResource(db, { resource_type: "condition", filters: { dependent_id } });
 ```
 
 If the unfiltered call works but the filtered one fails, revisit the checklist above.

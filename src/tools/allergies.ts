@@ -14,8 +14,8 @@ export async function createAllergy(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const allergies = validated.map(a => {
-      if (!ObjectId.isValid(a.patient_id)) {
-        throw new Error(`Invalid patient_id: ${a.patient_id}`);
+      if (!ObjectId.isValid(a.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${a.dependent_id}`);
       }
       if (a.verified_by && !ObjectId.isValid(a.verified_by)) {
         throw new Error(`Invalid verified_by provider_id: ${a.verified_by}`);
@@ -23,7 +23,7 @@ export async function createAllergy(db: Database, args: unknown) {
 
       return {
         ...a,
-        patient_id: new ObjectId(a.patient_id),
+        dependent_id: new ObjectId(a.dependent_id),
         verified_by: a.verified_by ? new ObjectId(a.verified_by) : undefined,
         created_at: now,
         updated_at: now,
@@ -46,7 +46,7 @@ export async function createAllergy(db: Database, args: unknown) {
               ...a,
               _id: a._id.toString(),
               allergy_id: a._id.toString(),
-              patient_id: a.patient_id.toString(),
+              dependent_id: a.dependent_id.toString(),
               verified_by: a.verified_by?.toString(),
             })),
           }, null, 2),
@@ -56,8 +56,8 @@ export async function createAllergy(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.verified_by && !ObjectId.isValid(validated.verified_by)) {
@@ -66,7 +66,7 @@ export async function createAllergy(db: Database, args: unknown) {
   
   const allergy = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     verified_by: validated.verified_by ? new ObjectId(validated.verified_by) : undefined,
     created_at: now,
     updated_at: now,
@@ -85,7 +85,7 @@ export async function createAllergy(db: Database, args: unknown) {
           allergy_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           verified_by: inserted?.verified_by?.toString(),
         }, null, 2),
       },
@@ -133,7 +133,7 @@ export async function updateAllergy(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           allergy_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           verified_by: result.verified_by?.toString(),
         }, null, 2),
       },
@@ -162,7 +162,7 @@ export async function getAllergy(db: Database, args: unknown) {
           ...allergy,
           _id: allergy._id.toString(),
           allergy_id: allergy._id.toString(),
-          patient_id: allergy.patient_id.toString(),
+          dependent_id: allergy.dependent_id.toString(),
           verified_by: allergy.verified_by?.toString(),
         }, null, 2),
       },

@@ -4,25 +4,24 @@ import { ObjectId } from 'mongodb';
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ patientId: string; recordType: string }> }
+  { params }: { params: Promise<{ dependentId: string; recordType: string }> }
 ) {
   try {
-    const { patientId, recordType } = await params;
+    const { dependentId, recordType } = await params;
     const client = await clientPromise;
     const db = client.db('health_record');
     
-    const patientObjectId = new ObjectId(patientId);
+    const dependentObjectId = new ObjectId(dependentId);
     
-    // Find records with ObjectId patient_id (all records should now use ObjectId)
     const records = await db.collection(recordType)
-      .find({ patient_id: patientObjectId })
+      .find({ dependent_id: dependentObjectId })
       .sort({ created_at: -1 })
       .toArray();
     
     const recordsWithIds = records.map(record => ({
       ...record,
       _id: record._id.toString(),
-      patient_id: record.patient_id?.toString ? record.patient_id.toString() : record.patient_id,
+      dependent_id: record.dependent_id?.toString ? record.dependent_id.toString() : record.dependent_id,
       provider_id: record.provider_id?.toString ? record.provider_id.toString() : record.provider_id,
       prescriber_id: record.prescriber_id?.toString ? record.prescriber_id.toString() : record.prescriber_id,
       ordered_by: record.ordered_by?.toString ? record.ordered_by.toString() : record.ordered_by,

@@ -280,8 +280,8 @@ export interface HealthSummarySamplingPrompt {
 }
 
 export interface HealthSummarySamplingPlan {
-  patientId: string;
-  patientName?: string;
+  dependentId: string;
+  dependentName?: string;
   action: HealthSummaryAction;
   resourceType: ResourceType;
   reason: string;
@@ -293,13 +293,13 @@ export interface CrudRuntimeOptions {
   onHealthSummaryPlan?: (plans: HealthSummarySamplingPlan[]) => Promise<void> | void;
 }
 
-interface PatientSnapshot {
-  patient: Record<string, unknown> | null;
+interface DependentSnapshot {
+  dependent: Record<string, unknown> | null;
   summaryText: string | null;
   resources: Record<string, Record<string, unknown>[]>;
 }
 
-const PATIENT_SUMMARY_RESOURCE_TYPES: ResourceType[] = [
+const DEPENDENT_SUMMARY_RESOURCE_TYPES: ResourceType[] = [
   'condition',
   'prescription',
   'lab',
@@ -319,7 +319,7 @@ interface SuggestedAction {
   tool: string;
   reason: string;
   params: {
-    patient_id: string;
+    dependent_id: string;
     summary_text: string;
   };
 }
@@ -327,16 +327,16 @@ interface SuggestedAction {
 type SuggestionCopy = Record<HealthSummaryAction, { reason: string; summaryText: string }>;
 
 const HEALTH_SUMMARY_SUGGESTION_COPY: Partial<Record<ResourceType, SuggestionCopy>> = {
-  patient: {
+  dependent: {
     create: {
-      reason: 'New patient record created',
+      reason: 'New dependent record created',
       summaryText:
         'Draft an initial health summary covering demographics, history, medications, and current goals.',
     },
     update: {
-      reason: 'Patient record updated',
+      reason: 'Dependent record updated',
       summaryText:
-        'Refresh the summary to reflect the latest demographic or contact updates for this patient.',
+        'Refresh the summary to reflect the latest demographic or contact updates for this dependent.',
     },
   },
   condition: {
@@ -451,7 +451,7 @@ const HEALTH_SUMMARY_SUGGESTION_COPY: Partial<Record<ResourceType, SuggestionCop
     create: {
       reason: 'New imaging study recorded',
       summaryText:
-        'Summarize the imaging modality, findings, and diagnostic impact for the patient.',
+        'Summarize the imaging modality, findings, and diagnostic impact for the dependent.',
     },
     update: {
       reason: 'Imaging details updated',
@@ -483,13 +483,13 @@ const HIGH_RISK_DUPLICATE_RESOURCE_TYPES = new Set<ResourceType>([
 ]);
 
 const DUPLICATE_FILTER_HINTS: Partial<Record<ResourceType, string[]>> = {
-  prescription: ['patient_id', 'medication_name', 'status'],
-  condition: ['patient_id', 'name', 'status'],
-  lab: ['patient_id', 'test_name', 'result_date'],
-  visit: ['patient_id', 'date', 'type'],
+  prescription: ['dependent_id', 'medication_name', 'status'],
+  condition: ['dependent_id', 'name', 'status'],
+  lab: ['dependent_id', 'test_name', 'result_date'],
+  visit: ['dependent_id', 'date', 'type'],
 };
 
-function normalizePatientId(value: unknown): string | null {
+function normalizeDependentId(value: unknown): string | null {
   if (!value) {
     return null;
   }
@@ -508,7 +508,7 @@ function normalizePatientId(value: unknown): string | null {
   return null;
 }
 
-function extractPatientIdFromRecord(
+function extractDependentIdFromRecord(
   resourceType: ResourceType,
   resourceDef: ResourceDefinition,
   record: Record<string, unknown>
@@ -517,24 +517,24 @@ function extractPatientIdFromRecord(
     return null;
   }
 
-  if ('patient_id' in record) {
-    const patientId = normalizePatientId((record as Record<string, unknown>).patient_id);
-    if (patientId) {
-      return patientId;
+  if ('dependent_id' in record) {
+    const dependentId = normalizeDependentId((record as Record<string, unknown>).dependent_id);
+    if (dependentId) {
+      return dependentId;
     }
   }
 
-  if (resourceType === 'patient') {
-    const patientId = normalizePatientId(record[resourceDef.idField]);
-    if (patientId) {
-      return patientId;
+  if (resourceType === 'dependent') {
+    const dependentId = normalizeDependentId(record[resourceDef.idField]);
+    if (dependentId) {
+      return dependentId;
     }
   }
 
   return null;
 }
 
-function extractPatientIds(
+function extractDependentIds(
   resourceType: ResourceType,
   resourceDef: ResourceDefinition,
   records: Record<string, unknown> | Record<string, unknown>[]
@@ -542,9 +542,9 @@ function extractPatientIds(
   const array = Array.isArray(records) ? records : [records];
   const ids = new Set<string>();
   array.forEach((record) => {
-    const patientId = extractPatientIdFromRecord(resourceType, resourceDef, record);
-    if (patientId) {
-      ids.add(patientId);
+    const dependentId = extractDependentIdFromRecord(resourceType, resourceDef, record);
+    if (dependentId) {
+      ids.add(dependentId);
     }
   });
   return Array.from(ids);
@@ -561,8 +561,8 @@ function buildHealthSummaryMeta(
     return null;
   }
 
-  const patientIds = extractPatientIds(resourceType, resourceDef, records);
-  if (patientIds.length === 0) {
+  const dependentIds = extractDependentIds(resourceType, resourceDef, records);
+  if (dependentIds.length === 0) {
     return null;
   }
 
@@ -571,11 +571,11 @@ function buildHealthSummaryMeta(
     return null;
   }
 
-  const suggestedActions: SuggestedAction[] = patientIds.map((patientId) => ({
+  const suggestedActions: SuggestedAction[] = dependentIds.map((dependentId) => ({
     tool: 'update_health_summary',
     reason: `${actionCopy.reason}. ${OUTLINE_REFERENCE_HINT}`,
     params: {
-      patient_id: patientId,
+      dependent_id: dependentId,
       summary_text: actionCopy.summaryText,
     },
   }));
@@ -590,42 +590,27 @@ function buildHealthSummaryMeta(
   };
 }
 
-function getPatientDisplayName(patient: Record<string, unknown> | null): string {
-  if (!patient || typeof patient !== 'object') {
-    return 'Unknown patient';
+function getDependentDisplayName(dependent: Record<string, unknown> | null): string {
+  if (!dependent || typeof dependent !== 'object') {
+    return 'Unknown dependent';
   }
 
-  const name = (patient as Record<string, unknown>).name;
-  if (name && typeof name === 'object') {
-    const givenRaw = (name as Record<string, unknown>).given;
-    const family = typeof (name as Record<string, unknown>).family === 'string'
-      ? (name as Record<string, unknown>).family
-      : undefined;
-
-    let given: string | undefined;
-    if (Array.isArray(givenRaw)) {
-      given = (givenRaw as unknown[]).filter((value): value is string => typeof value === 'string').join(' ');
-    } else if (typeof givenRaw === 'string') {
-      given = givenRaw;
-    }
-
-    const full = [given, family].filter(Boolean).join(' ').trim();
-    if (full.length > 0) {
-      return full;
-    }
+  const recordIdentifier = (dependent as Record<string, unknown>).record_identifier;
+  if (typeof recordIdentifier === 'string' && recordIdentifier.trim().length > 0) {
+    return recordIdentifier;
   }
 
-  const externalRefValue = (patient as Record<string, unknown>).external_ref;
+  const externalRefValue = (dependent as Record<string, unknown>).external_ref;
   if (typeof externalRefValue === 'string' && externalRefValue.trim().length > 0) {
     return externalRefValue;
   }
 
-  const patientIdValue = (patient as Record<string, unknown>).patient_id;
-  if (typeof patientIdValue === 'string' && patientIdValue.trim().length > 0) {
-    return patientIdValue;
+  const dependentIdValue = (dependent as Record<string, unknown>).dependent_id;
+  if (typeof dependentIdValue === 'string' && dependentIdValue.trim().length > 0) {
+    return dependentIdValue;
   }
 
-  return 'Unknown patient';
+  return 'Unknown dependent';
 }
 
 function stringifyForPrompt(value: unknown): string {
@@ -645,19 +630,19 @@ function stringifyForPrompt(value: unknown): string {
   }
 }
 
-async function buildPatientSnapshot(
+async function buildDependentSnapshot(
   adapter: PersistenceAdapter,
-  patientId: string
-): Promise<PatientSnapshot> {
-  const patientDef = RESOURCE_REGISTRY.patient;
-  const patientPersistence = adapter.forCollection(patientDef.collectionName);
-  const patientRecord = await patientPersistence.findById(patientId);
-  const patient = patientRecord
-    ? patientPersistence.toExternal(patientRecord, patientDef.idField)
+  dependentId: string
+): Promise<DependentSnapshot> {
+  const dependentDef = RESOURCE_REGISTRY.dependent;
+  const dependentPersistence = adapter.forCollection(dependentDef.collectionName);
+  const dependentRecord = await dependentPersistence.findById(dependentId);
+  const dependent = dependentRecord
+    ? dependentPersistence.toExternal(dependentRecord, dependentDef.idField)
     : null;
 
   const summaryPersistence = adapter.forCollection('active_summaries');
-  const summaryRecord = await summaryPersistence.findOne({ patient_id: patientId });
+  const summaryRecord = await summaryPersistence.findOne({ dependent_id: dependentId });
   const summaryText =
     summaryRecord && typeof summaryRecord.summary_text === 'string'
       ? summaryRecord.summary_text
@@ -665,33 +650,33 @@ async function buildPatientSnapshot(
 
   const resources: Record<string, Record<string, unknown>[]> = {};
   await Promise.all(
-    PATIENT_SUMMARY_RESOURCE_TYPES.map(async (relatedType) => {
+    DEPENDENT_SUMMARY_RESOURCE_TYPES.map(async (relatedType) => {
       const relatedDef = RESOURCE_REGISTRY[relatedType];
       const persistence = adapter.forCollection(relatedDef.collectionName);
-      const docs = await persistence.find({ patient_id: patientId }, MAX_RECORDS_PER_RESOURCE_FOR_SUMMARY);
+      const docs = await persistence.find({ dependent_id: dependentId }, MAX_RECORDS_PER_RESOURCE_FOR_SUMMARY);
       resources[relatedType] = docs.map((doc) => persistence.toExternal(doc, relatedDef.idField));
     })
   );
 
   return {
-    patient,
+    dependent,
     summaryText,
     resources,
   };
 }
 
 function buildHealthSummaryPrompt(params: {
-  patientId: string;
-  patientName: string;
+  dependentId: string;
+  dependentName: string;
   action: HealthSummaryAction;
   resourceType: ResourceType;
   reason: string;
   relevantRecords: Record<string, unknown>[];
-  snapshot: PatientSnapshot;
+  snapshot: DependentSnapshot;
 }): HealthSummarySamplingPrompt {
   const {
-    patientId,
-    patientName,
+    dependentId,
+    dependentName,
     action,
     resourceType,
     reason,
@@ -706,24 +691,24 @@ function buildHealthSummaryPrompt(params: {
   const existingSummary = snapshot.summaryText ?? 'No active health summary recorded yet.';
   const newRecordsBlock = relevantRecords.length > 0
     ? stringifyForPrompt(relevantRecords)
-    : 'No direct record payload was returned for this patient in this request.';
+    : 'No direct record payload was returned for this dependent in this request.';
 
   const snapshotBlock = stringifyForPrompt({
-    patient: snapshot.patient,
+    dependent: snapshot.dependent,
     resources: snapshot.resources,
   });
 
   const promptSections = [
     [
       '## Task',
-      `Regenerate the active health summary for patient ${patientName} (${patientId}).`,
+      `Regenerate the active health summary for dependent ${dependentName} (${dependentId}).`,
       `Reason: ${reason}. ${actionDescription} in resource type "${resourceType}".`,
     ].join('\n'),
     [
       '## Writing Instructions',
       '- Follow the outline exactly as written below.',
       '- Preserve previously documented clinical context unless superseded by new information.',
-      '- Use the full patient snapshot to ensure every major domain stays populated (conditions, medications, labs/imaging, care plan, risks).',
+      '- Use the full dependent snapshot to ensure every major domain stays populated (conditions, medications, labs/imaging, care plan, risks).',
       '- Call out when data is unchanged, unknown, or pending instead of omitting sections.',
     ].join('\n'),
     [
@@ -739,7 +724,7 @@ function buildHealthSummaryPrompt(params: {
       newRecordsBlock,
     ].join('\n'),
     [
-      '## Patient Snapshot Data',
+      '## Dependent Snapshot Data',
       snapshotBlock,
     ].join('\n'),
     [
@@ -787,25 +772,25 @@ async function buildHealthSummarySamplingPlans(
     return [];
   }
 
-  const patientIds = extractPatientIds(resourceType, resourceDef, records);
-  if (patientIds.length === 0) {
+  const dependentIds = extractDependentIds(resourceType, resourceDef, records);
+  if (dependentIds.length === 0) {
     return [];
   }
 
   const arrayRecords = Array.isArray(records) ? records : [records];
   const plans: HealthSummarySamplingPlan[] = [];
 
-  for (const patientId of patientIds) {
+  for (const dependentId of dependentIds) {
     const relevantRecords = arrayRecords.filter((record) => {
-      const recordPatientId = extractPatientIdFromRecord(resourceType, resourceDef, record);
-      return recordPatientId === patientId;
+      const recordDependentId = extractDependentIdFromRecord(resourceType, resourceDef, record);
+      return recordDependentId === dependentId;
     });
 
-    const snapshot = await buildPatientSnapshot(adapter, patientId);
-    const patientName = getPatientDisplayName(snapshot.patient);
+    const snapshot = await buildDependentSnapshot(adapter, dependentId);
+    const dependentName = getDependentDisplayName(snapshot.dependent);
     const prompt = buildHealthSummaryPrompt({
-      patientId,
-      patientName,
+      dependentId,
+      dependentName,
       action,
       resourceType,
       reason: actionCopy.reason,
@@ -814,8 +799,8 @@ async function buildHealthSummarySamplingPlans(
     });
 
     plans.push({
-      patientId,
-      patientName,
+      dependentId,
+      dependentName,
       action,
       resourceType,
       reason: actionCopy.reason,
@@ -917,8 +902,8 @@ export async function createResource(
       meta.health_summary_sampling = {
         status: 'requested',
         action: 'create',
-        patients: plans.map((plan) => ({
-          patient_id: plan.patientId,
+        dependents: plans.map((plan) => ({
+          dependent_id: plan.dependentId,
           reason: plan.reason,
         })),
       };
@@ -968,8 +953,8 @@ export async function createResource(
     meta.health_summary_sampling = {
       status: 'requested',
       action: 'create',
-      patients: plans.map((plan) => ({
-        patient_id: plan.patientId,
+      dependents: plans.map((plan) => ({
+        dependent_id: plan.dependentId,
         reason: plan.reason,
       })),
     };
@@ -1100,8 +1085,8 @@ export async function updateResource(
     meta.health_summary_sampling = {
       status: 'requested',
       action: 'update',
-      patients: plans.map((plan) => ({
-        patient_id: plan.patientId,
+      dependents: plans.map((plan) => ({
+        dependent_id: plan.dependentId,
         reason: plan.reason,
       })),
     };

@@ -1,6 +1,7 @@
 import { MongoClient, Db, Collection } from 'mongodb';
 import type {
-  Patient,
+  Dependent,
+  PhiVaultEntry,
   Provider,
   Visit,
   Prescription,
@@ -42,8 +43,12 @@ export class Database {
     return this.db;
   }
 
-  get patients(): Collection<Patient> {
-    return this.getDb().collection<Patient>('patients');
+  get dependents(): Collection<Dependent> {
+    return this.getDb().collection<Dependent>('dependents');
+  }
+
+  get phiVault(): Collection<PhiVaultEntry> {
+    return this.getDb().collection<PhiVaultEntry>('phi_vault');
   }
 
   get providers(): Collection<Provider> {
@@ -99,29 +104,31 @@ export class Database {
   }
 
   async createIndexes(): Promise<void> {
-    await this.patients.createIndex({ external_ref: 1 });
-    await this.patients.createIndex({ relationship: 1 });
+    await this.dependents.createIndex({ external_ref: 1 });
+    await this.dependents.createIndex({ record_identifier: 1 });
+    await this.dependents.createIndex({ archived: 1 });
+    await this.phiVault.createIndex({ dependent_id: 1 }, { unique: true });
     
-    await this.visits.createIndex({ patient_id: 1, created_at: -1 });
-    await this.prescriptions.createIndex({ patient_id: 1, created_at: -1 });
-    await this.prescriptions.createIndex({ patient_id: 1, medication_name: 1, start_date: 1 });
-    await this.labs.createIndex({ patient_id: 1, created_at: -1 });
-    await this.labs.createIndex({ patient_id: 1, test_name: 1, collected_at: 1 });
-    await this.treatments.createIndex({ patient_id: 1, created_at: -1 });
-    await this.conditions.createIndex({ patient_id: 1, created_at: -1 });
-    await this.conditions.createIndex({ patient_id: 1, status: 1 });
-    await this.allergies.createIndex({ patient_id: 1, created_at: -1 });
-    await this.allergies.createIndex({ patient_id: 1, type: 1 });
-    await this.immunizations.createIndex({ patient_id: 1, date_administered: -1 });
-    await this.immunizations.createIndex({ patient_id: 1, vaccine_name: 1 });
-    await this.vitalSigns.createIndex({ patient_id: 1, recorded_at: -1 });
-    await this.procedures.createIndex({ patient_id: 1, date_performed: -1 });
-    await this.procedures.createIndex({ patient_id: 1, procedure_type: 1 });
-    await this.imaging.createIndex({ patient_id: 1, study_date: -1 });
-    await this.imaging.createIndex({ patient_id: 1, modality: 1 });
-    await this.insurance.createIndex({ patient_id: 1, coverage_type: 1 });
+    await this.visits.createIndex({ dependent_id: 1, created_at: -1 });
+    await this.prescriptions.createIndex({ dependent_id: 1, created_at: -1 });
+    await this.prescriptions.createIndex({ dependent_id: 1, medication_name: 1, start_date: 1 });
+    await this.labs.createIndex({ dependent_id: 1, created_at: -1 });
+    await this.labs.createIndex({ dependent_id: 1, test_name: 1, collected_at: 1 });
+    await this.treatments.createIndex({ dependent_id: 1, created_at: -1 });
+    await this.conditions.createIndex({ dependent_id: 1, created_at: -1 });
+    await this.conditions.createIndex({ dependent_id: 1, status: 1 });
+    await this.allergies.createIndex({ dependent_id: 1, created_at: -1 });
+    await this.allergies.createIndex({ dependent_id: 1, type: 1 });
+    await this.immunizations.createIndex({ dependent_id: 1, date_administered: -1 });
+    await this.immunizations.createIndex({ dependent_id: 1, vaccine_name: 1 });
+    await this.vitalSigns.createIndex({ dependent_id: 1, recorded_at: -1 });
+    await this.procedures.createIndex({ dependent_id: 1, date_performed: -1 });
+    await this.procedures.createIndex({ dependent_id: 1, procedure_type: 1 });
+    await this.imaging.createIndex({ dependent_id: 1, study_date: -1 });
+    await this.imaging.createIndex({ dependent_id: 1, modality: 1 });
+    await this.insurance.createIndex({ dependent_id: 1, coverage_type: 1 });
     
-    await this.activeSummaries.createIndex({ patient_id: 1 }, { unique: true });
+    await this.activeSummaries.createIndex({ dependent_id: 1 }, { unique: true });
     
     console.error('Database indexes created');
   }

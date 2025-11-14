@@ -14,8 +14,8 @@ export async function createPrescription(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const prescriptions = validated.map(p => {
-      if (!ObjectId.isValid(p.patient_id)) {
-        throw new Error(`Invalid patient_id: ${p.patient_id}`);
+      if (!ObjectId.isValid(p.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${p.dependent_id}`);
       }
       if (p.prescriber_id && !ObjectId.isValid(p.prescriber_id)) {
         throw new Error(`Invalid prescriber_id: ${p.prescriber_id}`);
@@ -23,7 +23,7 @@ export async function createPrescription(db: Database, args: unknown) {
 
       return {
         ...p,
-        patient_id: new ObjectId(p.patient_id),
+        dependent_id: new ObjectId(p.dependent_id),
         prescriber_id: p.prescriber_id ? new ObjectId(p.prescriber_id) : undefined,
         created_at: now,
         updated_at: now,
@@ -46,7 +46,7 @@ export async function createPrescription(db: Database, args: unknown) {
               ...p,
               _id: p._id.toString(),
               prescription_id: p._id.toString(),
-              patient_id: p.patient_id.toString(),
+              dependent_id: p.dependent_id.toString(),
               prescriber_id: p.prescriber_id?.toString(),
             })),
           }, null, 2),
@@ -56,8 +56,8 @@ export async function createPrescription(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.prescriber_id && !ObjectId.isValid(validated.prescriber_id)) {
@@ -66,7 +66,7 @@ export async function createPrescription(db: Database, args: unknown) {
   
   const prescription = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     prescriber_id: validated.prescriber_id ? new ObjectId(validated.prescriber_id) : undefined,
     created_at: now,
     updated_at: now,
@@ -85,7 +85,7 @@ export async function createPrescription(db: Database, args: unknown) {
           prescription_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           prescriber_id: inserted?.prescriber_id?.toString(),
         }, null, 2),
       },
@@ -133,7 +133,7 @@ export async function updatePrescription(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           prescription_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           prescriber_id: result.prescriber_id?.toString(),
         }, null, 2),
       },
@@ -162,7 +162,7 @@ export async function getPrescription(db: Database, args: unknown) {
           ...prescription,
           _id: prescription._id.toString(),
           prescription_id: prescription._id.toString(),
-          patient_id: prescription.patient_id.toString(),
+          dependent_id: prescription.dependent_id.toString(),
           prescriber_id: prescription.prescriber_id?.toString(),
         }, null, 2),
       },

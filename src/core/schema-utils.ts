@@ -53,7 +53,7 @@ function getExampleForResourceType(resourceType: string): any {
   const examples: Record<string, any> = {
     lab: {
       single: {
-        patient_id: "507f1f77bcf86cd799439011",
+        dependent_id: "507f1f77bcf86cd799439011",
         test_name: "Complete Blood Count",
         results: [
           { test: "WBC", value: 7.5, unit: "K/uL", reference_range: "4.0-11.0" },
@@ -64,44 +64,43 @@ function getExampleForResourceType(resourceType: string): any {
       },
       batch: [
         {
-          patient_id: "507f1f77bcf86cd799439011",
+          dependent_id: "507f1f77bcf86cd799439011",
           test_name: "CBC",
           results: [{ test: "WBC", value: 7.5, unit: "K/uL" }]
         },
         {
-          patient_id: "507f1f77bcf86cd799439011",
+          dependent_id: "507f1f77bcf86cd799439011",
           test_name: "BMP",
           results: [{ test: "Sodium", value: 140, unit: "mEq/L" }]
         }
       ]
     },
-    patient: {
+    dependent: {
       single: {
-        name: { given: "John", family: "Smith" },
-        dob: "1955-03-15",
-        sex: "male",
-        relationship: "father"
+        record_identifier: "Father",
+        external_ref: "dad-record",
+        archived: false
       },
       batch: [
-        { name: { given: "John", family: "Smith" }, relationship: "father" },
-        { name: { given: "Mary", family: "Smith" }, relationship: "mother" }
+        { record_identifier: "Father" },
+        { record_identifier: "Grandmother" }
       ]
     },
     visit: {
       single: {
-        patient_id: "507f1f77bcf86cd799439011",
+        dependent_id: "507f1f77bcf86cd799439011",
         date: "2024-01-15",
         type: "office",
         reason: "Annual checkup"
       },
       batch: [
-        { patient_id: "507f1f77bcf86cd799439011", date: "2024-01-15", type: "office" },
-        { patient_id: "507f1f77bcf86cd799439011", date: "2024-02-20", type: "telehealth" }
+        { dependent_id: "507f1f77bcf86cd799439011", date: "2024-01-15", type: "office" },
+        { dependent_id: "507f1f77bcf86cd799439011", date: "2024-02-20", type: "telehealth" }
       ]
     },
     prescription: {
       single: {
-        patient_id: "507f1f77bcf86cd799439011",
+        dependent_id: "507f1f77bcf86cd799439011",
         medication_name: "Lisinopril",
         dose: "10mg",
         frequency: "once daily",
@@ -110,7 +109,7 @@ function getExampleForResourceType(resourceType: string): any {
     },
     condition: {
       single: {
-        patient_id: "507f1f77bcf86cd799439011",
+        dependent_id: "507f1f77bcf86cd799439011",
         name: "Hypertension",
         status: "active",
         diagnosed_date: "2023-05-10"

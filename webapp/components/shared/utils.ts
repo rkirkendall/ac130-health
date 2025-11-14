@@ -18,6 +18,7 @@ const isLikelyNameKey = (key: string) => {
     lower === 'name' ||
     lower.endsWith('_name') ||
     lower.includes('patient_name') ||
+    lower.includes('dependent_name') ||
     lower.includes('provider_name')
   );
 };

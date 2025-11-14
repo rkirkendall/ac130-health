@@ -13,8 +13,8 @@ export function updateHealthSummary(db: Database, args: unknown) {
   return sharedUpdateHealthSummary(getAdapter(db), args);
 }
 
-export function getHealthSummary(db: Database, patientId: string) {
-  return sharedGetHealthSummary(getAdapter(db), patientId);
+export function getHealthSummary(db: Database, dependentId: string) {
+  return sharedGetHealthSummary(getAdapter(db), dependentId);
 }
 
 

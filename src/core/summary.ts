@@ -5,19 +5,19 @@ export async function updateHealthSummary(adapter: PersistenceAdapter, args: unk
   const validated = UpdateHealthSummarySchema.parse(args);
   const persistence = adapter.forCollection('active_summaries');
 
-  if (!persistence.validateId(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!persistence.validateId(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   const result = await persistence.updateOne(
-    { patient_id: validated.patient_id },
+    { dependent_id: validated.dependent_id },
     {
       set: {
         summary_text: validated.summary_text,
         updated_at: new Date(),
       },
       setOnInsert: {
-        patient_id: validated.patient_id,
+        dependent_id: validated.dependent_id,
       },
     },
     {
@@ -32,7 +32,7 @@ export async function updateHealthSummary(adapter: PersistenceAdapter, args: unk
         type: 'text',
         text: JSON.stringify({
           success: true,
-          patient_id: validated.patient_id,
+          dependent_id: validated.dependent_id,
           updated_at: result?.updated_at,
         }, null, 2),
       },
@@ -40,15 +40,15 @@ export async function updateHealthSummary(adapter: PersistenceAdapter, args: unk
   };
 }
 
-export async function getHealthSummary(adapter: PersistenceAdapter, patientId: string): Promise<string> {
+export async function getHealthSummary(adapter: PersistenceAdapter, dependentId: string): Promise<string> {
   const persistence = adapter.forCollection('active_summaries');
 
-  if (!persistence.validateId(patientId)) {
-    return 'Invalid patient_id provided.';
+  if (!persistence.validateId(dependentId)) {
+    return 'Invalid dependent_id provided.';
   }
   
   const summary = await persistence.findOne({
-    patient_id: patientId,
+    dependent_id: dependentId,
   });
   
   if (!summary) {

@@ -51,14 +51,14 @@ Prefer running the server directly on the host instead of inside Docker? Replace
 - `update_resource` — patch fields on an existing record
 - `delete_resource` — remove a record by ID
 - `list_resource` — enumerate records with optional filters (see schema resources for filter fields)
-- `update_health_summary` — maintain the `summary://patient/{patient_id}` resource
+- `update_health_summary` — maintain the `summary://patient/{dependent_id}` resource
 
 Each CRUD tool accepts a `resource_type` drawn from the 13 collections above.
 
 ### Prompts & Resources
 - Prompts: 1 (`care_manager_base`)
 - Resources: 15
-  - `summary://patient/{patient_id}` live health summaries
+  - `summary://patient/{dependent_id}` live health summaries
   - `guide://health_summary/outline` authoring guidance
   - `schema://{resource_type}` — JSON payload bundling the create/update/list schemas for that resource type
 

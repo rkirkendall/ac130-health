@@ -14,13 +14,13 @@ export async function createInsurance(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const insurance = validated.map(i => {
-      if (!ObjectId.isValid(i.patient_id)) {
-        throw new Error(`Invalid patient_id: ${i.patient_id}`);
+      if (!ObjectId.isValid(i.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${i.dependent_id}`);
       }
 
       return {
         ...i,
-        patient_id: new ObjectId(i.patient_id),
+        dependent_id: new ObjectId(i.dependent_id),
         created_at: now,
         updated_at: now,
         created_by: 'mcp',
@@ -42,7 +42,7 @@ export async function createInsurance(db: Database, args: unknown) {
               ...i,
               _id: i._id.toString(),
               insurance_id: i._id.toString(),
-              patient_id: i.patient_id.toString(),
+              dependent_id: i.dependent_id.toString(),
             })),
           }, null, 2),
         },
@@ -51,13 +51,13 @@ export async function createInsurance(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   const insuranceRecord = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     created_at: now,
     updated_at: now,
     created_by: 'mcp',
@@ -75,7 +75,7 @@ export async function createInsurance(db: Database, args: unknown) {
           insurance_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
         }, null, 2),
       },
     ],
@@ -114,7 +114,7 @@ export async function updateInsurance(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           insurance_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
         }, null, 2),
       },
     ],
@@ -142,7 +142,7 @@ export async function getInsurance(db: Database, args: unknown) {
           ...insurance,
           _id: insurance._id.toString(),
           insurance_id: insurance._id.toString(),
-          patient_id: insurance.patient_id.toString(),
+          dependent_id: insurance.dependent_id.toString(),
         }, null, 2),
       },
     ],

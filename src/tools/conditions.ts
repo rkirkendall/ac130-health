@@ -14,8 +14,8 @@ export async function createCondition(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const conditions = validated.map(c => {
-      if (!ObjectId.isValid(c.patient_id)) {
-        throw new Error(`Invalid patient_id: ${c.patient_id}`);
+      if (!ObjectId.isValid(c.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${c.dependent_id}`);
       }
       if (c.diagnosed_by && !ObjectId.isValid(c.diagnosed_by)) {
         throw new Error(`Invalid diagnosed_by provider_id: ${c.diagnosed_by}`);
@@ -23,7 +23,7 @@ export async function createCondition(db: Database, args: unknown) {
 
       return {
         ...c,
-        patient_id: new ObjectId(c.patient_id),
+        dependent_id: new ObjectId(c.dependent_id),
         diagnosed_by: c.diagnosed_by ? new ObjectId(c.diagnosed_by) : undefined,
         created_at: now,
         updated_at: now,
@@ -46,7 +46,7 @@ export async function createCondition(db: Database, args: unknown) {
               ...c,
               _id: c._id.toString(),
               condition_id: c._id.toString(),
-              patient_id: c.patient_id.toString(),
+              dependent_id: c.dependent_id.toString(),
               diagnosed_by: c.diagnosed_by?.toString(),
             })),
           }, null, 2),
@@ -56,8 +56,8 @@ export async function createCondition(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.diagnosed_by && !ObjectId.isValid(validated.diagnosed_by)) {
@@ -66,7 +66,7 @@ export async function createCondition(db: Database, args: unknown) {
   
   const condition = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     diagnosed_by: validated.diagnosed_by ? new ObjectId(validated.diagnosed_by) : undefined,
     created_at: now,
     updated_at: now,
@@ -85,7 +85,7 @@ export async function createCondition(db: Database, args: unknown) {
           condition_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           diagnosed_by: inserted?.diagnosed_by?.toString(),
         }, null, 2),
       },
@@ -133,7 +133,7 @@ export async function updateCondition(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           condition_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           diagnosed_by: result.diagnosed_by?.toString(),
         }, null, 2),
       },
@@ -162,7 +162,7 @@ export async function getCondition(db: Database, args: unknown) {
           ...condition,
           _id: condition._id.toString(),
           condition_id: condition._id.toString(),
-          patient_id: condition.patient_id.toString(),
+          dependent_id: condition.dependent_id.toString(),
           diagnosed_by: condition.diagnosed_by?.toString(),
         }, null, 2),
       },

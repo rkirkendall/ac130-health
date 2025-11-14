@@ -4,14 +4,36 @@ import { z, type ZodRawShape } from 'zod';
 const strictObject = <T extends ZodRawShape>(shape: T) => z.object(shape).strict();
 
 // MongoDB Document Types
-export interface Patient {
+export interface Dependent {
   _id: ObjectId;
-  name?: { given?: string; family?: string };
+  record_identifier: string;
   external_ref?: string;
-  relationship?: string;
-  dob?: string;
+  phi_vault_id?: ObjectId;
+  archived?: boolean;
+  created_at: Date;
+  updated_at: Date;
+  created_by?: string;
+  updated_by?: string;
+}
+
+export interface PhiVaultEntry {
+  _id?: ObjectId;
+  dependent_id: ObjectId;
+  legal_name?: { given?: string; family?: string };
+  preferred_name?: string;
+  relationship_note?: string;
+  full_dob?: string;
+  birth_year?: number;
   sex?: string;
   contact?: { phone?: string; email?: string };
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
   created_at: Date;
   updated_at: Date;
   created_by?: string;
@@ -20,7 +42,7 @@ export interface Patient {
 
 export interface ActiveSummary {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   summary_text: string;
   updated_at: Date;
   version?: number;
@@ -40,7 +62,7 @@ export interface Provider {
 
 export interface Visit {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   date?: string;
   provider_id?: ObjectId;
   type?: 'office' | 'er' | 'telehealth' | 'inpatient' | 'other';
@@ -54,7 +76,7 @@ export interface Visit {
 
 export interface Prescription {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   medication_name: string;
   dose?: string;
   frequency?: string;
@@ -70,7 +92,7 @@ export interface Prescription {
 
 export interface Lab {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   test_name: string;
   components?: Array<{
     name: string;
@@ -98,7 +120,7 @@ export interface Lab {
 
 export interface Condition {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   name: string;
   diagnosed_date?: string;
   resolved_date?: string;
@@ -114,7 +136,7 @@ export interface Condition {
 
 export interface Treatment {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   title?: string;
   description?: string;
   start_date?: string;
@@ -128,7 +150,7 @@ export interface Treatment {
 
 export interface Allergy {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   allergen: string;
   type?: 'drug' | 'food' | 'environmental' | 'other';
   reaction?: string;
@@ -144,7 +166,7 @@ export interface Allergy {
 
 export interface Immunization {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   vaccine_name: string;
   date_administered?: string;
   dose_number?: number;
@@ -161,7 +183,7 @@ export interface Immunization {
 
 export interface VitalSigns {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   recorded_at: Date;
   recorded_by?: ObjectId;
   blood_pressure?: {
@@ -203,7 +225,7 @@ export interface VitalSigns {
 
 export interface Procedure {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   procedure_name: string;
   procedure_type?: 'surgery' | 'diagnostic' | 'therapeutic' | 'other';
   date_performed?: string;
@@ -221,7 +243,7 @@ export interface Procedure {
 
 export interface Imaging {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   study_type: string;
   modality?: 'X-Ray' | 'CT' | 'MRI' | 'Ultrasound' | 'PET' | 'Nuclear' | 'Other';
   body_site?: string;
@@ -240,7 +262,7 @@ export interface Imaging {
 
 export interface Insurance {
   _id: ObjectId;
-  patient_id: ObjectId;
+  dependent_id: ObjectId;
   provider_name: string;
   plan_name?: string;
   policy_number?: string;
@@ -259,48 +281,58 @@ export interface Insurance {
 }
 
 // Zod Schemas for Input Validation
-const PatientDataSchema = strictObject({
-  name: strictObject({
+const PhiDataSchema = strictObject({
+  legal_name: strictObject({
     given: z.string().optional(),
     family: z.string().optional(),
   }).optional(),
-  external_ref: z.string().optional(),
-  relationship: z.string().optional(),
-  dob: z.string().optional(),
+  preferred_name: z.string().optional(),
+  relationship_note: z.string().optional(),
+  full_dob: z.string().optional(),
+  birth_year: z.number().int().optional(),
   sex: z.string().optional(),
   contact: strictObject({
     phone: z.string().optional(),
     email: z.string().optional(),
   }).optional(),
+  address: strictObject({
+    line1: z.string().optional(),
+    line2: z.string().optional(),
+    city: z.string().optional(),
+    state: z.string().optional(),
+    postal_code: z.string().optional(),
+    country: z.string().optional(),
+  }).optional(),
 });
 
-export const CreatePatientSchema = z.union([
-  PatientDataSchema,
-  z.array(PatientDataSchema),
+const DependentDataSchema = strictObject({
+  record_identifier: z.string().min(1, 'record_identifier is required'),
+  external_ref: z.string().optional(),
+  archived: z.boolean().optional(),
+  phi: PhiDataSchema.optional(),
+});
+
+export const CreateDependentSchema = z.union([
+  DependentDataSchema,
+  z.array(DependentDataSchema),
 ]);
 
-export const UpdatePatientSchema = strictObject({
-  patient_id: z.string(),
-  name: strictObject({
-    given: z.string().optional(),
-    family: z.string().optional(),
-  }).optional(),
+export const UpdateDependentSchema = strictObject({
+  dependent_id: z.string(),
+  record_identifier: z.string().optional(),
   external_ref: z.string().optional(),
-  relationship: z.string().optional(),
-  dob: z.string().optional(),
-  sex: z.string().optional(),
-  contact: strictObject({
-    phone: z.string().optional(),
-    email: z.string().optional(),
-  }).optional(),
+  archived: z.boolean().optional(),
+  phi: PhiDataSchema.optional(),
 });
 
-export const GetPatientSchema = strictObject({
-  patient_id: z.string(),
+export const GetDependentSchema = strictObject({
+  dependent_id: z.string(),
 });
 
-export const ListPatientsSchema = strictObject({
-  relationship: z.string().optional(),
+export const ListDependentsSchema = strictObject({
+  record_identifier: z.string().optional(),
+  external_ref: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -330,7 +362,7 @@ export const GetProviderSchema = strictObject({
 });
 
 const VisitDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   date: z.string().optional(),
   provider_id: z.string().optional(),
   type: z.enum(['office', 'er', 'telehealth', 'inpatient', 'other']).optional(),
@@ -357,14 +389,14 @@ export const GetVisitSchema = strictObject({
 });
 
 export const ListVisitsSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   provider_id: z.string().optional(),
   type: z.enum(['office', 'er', 'telehealth', 'inpatient', 'other']).optional(),
   limit: z.number().optional(),
 });
 
 const PrescriptionDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   medication_name: z.string(),
   dose: z.string().optional(),
   frequency: z.string().optional(),
@@ -395,7 +427,7 @@ export const GetPrescriptionSchema = strictObject({
 });
 
 export const ListPrescriptionsSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   prescriber_id: z.string().optional(),
   status: z.enum(['active', 'stopped', 'completed']).optional(),
   medication_name: z.string().optional(),
@@ -403,7 +435,7 @@ export const ListPrescriptionsSchema = strictObject({
 });
 
 const LabDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   test_name: z.string(),
   components: z.array(strictObject({
     name: z.string(),
@@ -458,7 +490,7 @@ export const GetLabSchema = strictObject({
 });
 
 export const ListLabsSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   test_name: z.string().optional(),
   status: z.enum(['pending', 'final', 'corrected']).optional(),
   ordered_by: z.string().optional(),
@@ -466,7 +498,7 @@ export const ListLabsSchema = strictObject({
 });
 
 export const CreateTreatmentSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   title: z.string().optional(),
   description: z.string().optional(),
   start_date: z.string().optional(),
@@ -494,14 +526,14 @@ export const GetTreatmentSchema = strictObject({
 });
 
 export const ListTreatmentsSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   provider_id: z.string().optional(),
   title: z.string().optional(),
   limit: z.number().optional(),
 });
 
 const ConditionDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   name: z.string(),
   diagnosed_date: z.string().optional(),
   resolved_date: z.string().optional(),
@@ -532,7 +564,7 @@ export const GetConditionSchema = strictObject({
 });
 
 export const ListConditionsSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   diagnosed_by: z.string().optional(),
   status: z.enum(['active', 'resolved', 'chronic']).optional(),
   severity: z.enum(['mild', 'moderate', 'severe']).optional(),
@@ -541,7 +573,7 @@ export const ListConditionsSchema = strictObject({
 
 // Allergy Schemas
 const AllergyDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   allergen: z.string(),
   type: z.enum(['drug', 'food', 'environmental', 'other']).optional(),
   reaction: z.string().optional(),
@@ -572,7 +604,7 @@ export const GetAllergySchema = strictObject({
 });
 
 export const ListAllergiesSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   type: z.enum(['drug', 'food', 'environmental', 'other']).optional(),
   severity: z.enum(['mild', 'moderate', 'severe', 'life-threatening']).optional(),
   limit: z.number().optional(),
@@ -580,7 +612,7 @@ export const ListAllergiesSchema = strictObject({
 
 // Immunization Schemas
 const ImmunizationDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   vaccine_name: z.string(),
   date_administered: z.string().optional(),
   dose_number: z.number().optional(),
@@ -613,7 +645,7 @@ export const GetImmunizationSchema = strictObject({
 });
 
 export const ListImmunizationsSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   vaccine_name: z.string().optional(),
   administered_by: z.string().optional(),
   limit: z.number().optional(),
@@ -621,7 +653,7 @@ export const ListImmunizationsSchema = strictObject({
 
 // Vital Signs Schemas
 const VitalSignsDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   recorded_at: z.string().optional(),
   recorded_by: z.string().optional(),
   blood_pressure: strictObject({
@@ -704,14 +736,14 @@ export const GetVitalSignsSchema = strictObject({
 });
 
 export const ListVitalSignsSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   recorded_by: z.string().optional(),
   limit: z.number().optional(),
 });
 
 // Procedure Schemas
 const ProcedureDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   procedure_name: z.string(),
   procedure_type: z.enum(['surgery', 'diagnostic', 'therapeutic', 'other']).optional(),
   date_performed: z.string().optional(),
@@ -746,7 +778,7 @@ export const GetProcedureSchema = strictObject({
 });
 
 export const ListProceduresSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   procedure_type: z.enum(['surgery', 'diagnostic', 'therapeutic', 'other']).optional(),
   performed_by: z.string().optional(),
   limit: z.number().optional(),
@@ -754,7 +786,7 @@ export const ListProceduresSchema = strictObject({
 
 // Imaging Schemas
 const ImagingDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   study_type: z.string(),
   modality: z.enum(['X-Ray', 'CT', 'MRI', 'Ultrasound', 'PET', 'Nuclear', 'Other']).optional(),
   body_site: z.string().optional(),
@@ -791,7 +823,7 @@ export const GetImagingSchema = strictObject({
 });
 
 export const ListImagingSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   modality: z.enum(['X-Ray', 'CT', 'MRI', 'Ultrasound', 'PET', 'Nuclear', 'Other']).optional(),
   ordered_by: z.string().optional(),
   limit: z.number().optional(),
@@ -799,7 +831,7 @@ export const ListImagingSchema = strictObject({
 
 // Insurance Schemas
 const InsuranceDataSchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   provider_name: z.string(),
   plan_name: z.string().optional(),
   policy_number: z.string().optional(),
@@ -838,14 +870,14 @@ export const GetInsuranceSchema = strictObject({
 });
 
 export const ListInsuranceSchema = strictObject({
-  patient_id: z.string().optional(),
+  dependent_id: z.string().optional(),
   coverage_type: z.enum(['primary', 'secondary', 'tertiary']).optional(),
   provider_name: z.string().optional(),
   limit: z.number().optional(),
 });
 
 export const UpdateHealthSummarySchema = strictObject({
-  patient_id: z.string(),
+  dependent_id: z.string(),
   summary_text: z.string(),
 });
 

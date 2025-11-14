@@ -26,9 +26,9 @@
   - Effective and termination dates
 
 ### Database Changes
-- Added `procedures` collection with indexes on `patient_id` and `procedure_type`
-- Added `imaging` collection with indexes on `patient_id` and `modality`
-- Added `insurance` collection with indexes on `patient_id` and `coverage_type`
+- Added `procedures` collection with indexes on `dependent_id` and `procedure_type`
+- Added `imaging` collection with indexes on `dependent_id` and `modality`
+- Added `insurance` collection with indexes on `dependent_id` and `coverage_type`
 
 ### Total Tool Count
 **41 tools** (up from 32 in v0.8.0):
@@ -65,9 +65,9 @@
   - Flexible unit support (metric/imperial)
 
 ### Database Changes
-- Added `allergies` collection with indexes on `patient_id` and `type`
-- Added `immunizations` collection with indexes on `patient_id` and `vaccine_name`
-- Added `vital_signs` collection with indexes on `patient_id` and `recorded_at`
+- Added `allergies` collection with indexes on `dependent_id` and `type`
+- Added `immunizations` collection with indexes on `dependent_id` and `vaccine_name`
+- Added `vital_signs` collection with indexes on `dependent_id` and `recorded_at`
 
 ### Documentation Updates
 - New DOCKER.md with comprehensive Docker setup and usage guide
@@ -120,7 +120,7 @@
   - Track diagnosis and resolution dates
 
 ### Database Changes
-- Added `conditions` collection with indexes on `patient_id` and `status`
+- Added `conditions` collection with indexes on `dependent_id` and `status`
 - Schema includes: name, diagnosed_date, resolved_date, status, severity, notes, diagnosed_by
 
 ### Documentation Updates

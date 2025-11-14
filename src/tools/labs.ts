@@ -37,7 +37,7 @@ export async function createLab(db: Database, args: unknown) {
     return {
       ...l,
       components,
-      patient_id: new ObjectId(l.patient_id),
+      dependent_id: new ObjectId(l.dependent_id),
       ordered_by: l.ordered_by ? new ObjectId(l.ordered_by) : undefined,
       collected_at: collectedAt,
       created_at: now,
@@ -50,8 +50,8 @@ export async function createLab(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const labs = validated.map(l => {
-      if (!ObjectId.isValid(l.patient_id)) {
-        throw new Error(`Invalid patient_id: ${l.patient_id}`);
+      if (!ObjectId.isValid(l.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${l.dependent_id}`);
       }
       if (l.ordered_by && !ObjectId.isValid(l.ordered_by)) {
         throw new Error(`Invalid ordered_by provider_id: ${l.ordered_by}`);
@@ -74,7 +74,7 @@ export async function createLab(db: Database, args: unknown) {
               ...l,
               _id: l._id.toString(),
               lab_id: l._id.toString(),
-              patient_id: l.patient_id.toString(),
+              dependent_id: l.dependent_id.toString(),
               ordered_by: l.ordered_by?.toString(),
             })),
           }, null, 2),
@@ -84,8 +84,8 @@ export async function createLab(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.ordered_by && !ObjectId.isValid(validated.ordered_by)) {
@@ -105,7 +105,7 @@ export async function createLab(db: Database, args: unknown) {
           lab_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           ordered_by: inserted?.ordered_by?.toString(),
         }, null, 2),
       },
@@ -157,7 +157,7 @@ export async function updateLab(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           lab_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           ordered_by: result.ordered_by?.toString(),
         }, null, 2),
       },
@@ -186,7 +186,7 @@ export async function getLab(db: Database, args: unknown) {
           ...lab,
           _id: lab._id.toString(),
           lab_id: lab._id.toString(),
-          patient_id: lab.patient_id.toString(),
+          dependent_id: lab.dependent_id.toString(),
           ordered_by: lab.ordered_by?.toString(),
         }, null, 2),
       },

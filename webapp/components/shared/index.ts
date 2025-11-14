@@ -1,2 +1,2 @@
 // Re-export all components
-export { PatientViewer } from './PatientViewer.js';
+export { DependentViewer } from './DependentViewer.js';

@@ -14,8 +14,8 @@ export async function createVitalSigns(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const vitals = validated.map(v => {
-      if (!ObjectId.isValid(v.patient_id)) {
-        throw new Error(`Invalid patient_id: ${v.patient_id}`);
+      if (!ObjectId.isValid(v.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${v.dependent_id}`);
       }
       if (v.recorded_by && !ObjectId.isValid(v.recorded_by)) {
         throw new Error(`Invalid recorded_by provider_id: ${v.recorded_by}`);
@@ -23,7 +23,7 @@ export async function createVitalSigns(db: Database, args: unknown) {
 
       return {
         ...v,
-        patient_id: new ObjectId(v.patient_id),
+        dependent_id: new ObjectId(v.dependent_id),
         recorded_by: v.recorded_by ? new ObjectId(v.recorded_by) : undefined,
         recorded_at: v.recorded_at ? new Date(v.recorded_at) : now,
         created_at: now,
@@ -47,7 +47,7 @@ export async function createVitalSigns(db: Database, args: unknown) {
               ...v,
               _id: v._id.toString(),
               vitals_id: v._id.toString(),
-              patient_id: v.patient_id.toString(),
+              dependent_id: v.dependent_id.toString(),
               recorded_by: v.recorded_by?.toString(),
             })),
           }, null, 2),
@@ -57,8 +57,8 @@ export async function createVitalSigns(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.recorded_by && !ObjectId.isValid(validated.recorded_by)) {
@@ -67,7 +67,7 @@ export async function createVitalSigns(db: Database, args: unknown) {
   
   const vitals = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     recorded_by: validated.recorded_by ? new ObjectId(validated.recorded_by) : undefined,
     recorded_at: validated.recorded_at ? new Date(validated.recorded_at) : now,
     created_at: now,
@@ -87,7 +87,7 @@ export async function createVitalSigns(db: Database, args: unknown) {
           vitals_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           recorded_by: inserted?.recorded_by?.toString(),
         }, null, 2),
       },
@@ -139,7 +139,7 @@ export async function updateVitalSigns(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           vitals_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           recorded_by: result.recorded_by?.toString(),
         }, null, 2),
       },
@@ -168,7 +168,7 @@ export async function getVitalSigns(db: Database, args: unknown) {
           ...vitals,
           _id: vitals._id.toString(),
           vitals_id: vitals._id.toString(),
-          patient_id: vitals.patient_id.toString(),
+          dependent_id: vitals.dependent_id.toString(),
           recorded_by: vitals.recorded_by?.toString(),
         }, null, 2),
       },

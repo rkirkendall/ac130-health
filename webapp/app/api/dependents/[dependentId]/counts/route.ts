@@ -5,23 +5,22 @@ import { RECORD_TYPES } from '@/lib/types';
 
 export async function GET(
   request: Request,
-  { params }: { params: Promise<{ patientId: string }> }
+  { params }: { params: Promise<{ dependentId: string }> }
 ) {
   try {
-    const { patientId } = await params;
+    const { dependentId } = await params;
     const client = await clientPromise;
     const db = client.db('health_record');
     
-    const patientObjectId = new ObjectId(patientId);
+    const dependentObjectId = new ObjectId(dependentId);
     
     const counts = await Promise.all(
       RECORD_TYPES.map(async ({ type, label }) => {
-        // Try both ObjectId and string format for patient_id
         const countWithObjectId = await db.collection(type).countDocuments({
-          patient_id: patientObjectId,
+          dependent_id: dependentObjectId,
         });
         const countWithString = await db.collection(type).countDocuments({
-          patient_id: patientId,
+          dependent_id: dependentId,
         });
         const count = Math.max(countWithObjectId, countWithString);
         return { type, label, count };

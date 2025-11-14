@@ -1,24 +1,9 @@
 import { z } from 'zod';
-import type {
-  Patient,
-  Provider,
-  Visit,
-  Prescription,
-  Lab,
-  Treatment,
-  Condition,
-  Allergy,
-  Immunization,
-  VitalSigns,
-  Procedure,
-  Imaging,
-  Insurance,
-} from './types.js';
 import {
-  CreatePatientSchema,
-  UpdatePatientSchema,
-  GetPatientSchema,
-  ListPatientsSchema,
+  CreateDependentSchema,
+  UpdateDependentSchema,
+  GetDependentSchema,
+  ListDependentsSchema,
   CreateProviderSchema,
   UpdateProviderSchema,
   GetProviderSchema,
@@ -69,7 +54,7 @@ import {
 } from './types.js';
 
 export type ResourceType =
-  | 'patient'
+  | 'dependent'
   | 'provider'
   | 'visit'
   | 'prescription'
@@ -87,7 +72,7 @@ export interface ResourceDefinition {
   name: string;
   description: string;
   collectionName: string;
-  idField: string; // e.g., 'patient_id', 'provider_id'
+  idField: string; // e.g., 'dependent_id', 'provider_id'
   createSchema: z.ZodType;
   updateSchema: z.ZodType;
   getSchema: z.ZodType;
@@ -96,15 +81,15 @@ export interface ResourceDefinition {
 }
 
 export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
-  patient: {
-    name: 'patient',
-    description: 'Patient records',
-    collectionName: 'patients',
-    idField: 'patient_id',
-    createSchema: CreatePatientSchema,
-    updateSchema: UpdatePatientSchema,
-    getSchema: GetPatientSchema,
-    listSchema: ListPatientsSchema,
+  dependent: {
+    name: 'dependent',
+    description: 'Dependent records',
+    collectionName: 'dependents',
+    idField: 'dependent_id',
+    createSchema: CreateDependentSchema,
+    updateSchema: UpdateDependentSchema,
+    getSchema: GetDependentSchema,
+    listSchema: ListDependentsSchema,
     supportsBatch: true,
   },
   provider: {

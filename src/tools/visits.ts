@@ -14,8 +14,8 @@ export async function createVisit(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const visits = validated.map(v => {
-      if (!ObjectId.isValid(v.patient_id)) {
-        throw new Error(`Invalid patient_id: ${v.patient_id}`);
+      if (!ObjectId.isValid(v.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${v.dependent_id}`);
       }
       if (v.provider_id && !ObjectId.isValid(v.provider_id)) {
         throw new Error(`Invalid provider_id: ${v.provider_id}`);
@@ -23,7 +23,7 @@ export async function createVisit(db: Database, args: unknown) {
 
       return {
         ...v,
-        patient_id: new ObjectId(v.patient_id),
+        dependent_id: new ObjectId(v.dependent_id),
         provider_id: v.provider_id ? new ObjectId(v.provider_id) : undefined,
         created_at: now,
         updated_at: now,
@@ -46,7 +46,7 @@ export async function createVisit(db: Database, args: unknown) {
               ...v,
               _id: v._id.toString(),
               visit_id: v._id.toString(),
-              patient_id: v.patient_id.toString(),
+              dependent_id: v.dependent_id.toString(),
               provider_id: v.provider_id?.toString(),
             })),
           }, null, 2),
@@ -56,8 +56,8 @@ export async function createVisit(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.provider_id && !ObjectId.isValid(validated.provider_id)) {
@@ -66,7 +66,7 @@ export async function createVisit(db: Database, args: unknown) {
   
   const visit = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     provider_id: validated.provider_id ? new ObjectId(validated.provider_id) : undefined,
     created_at: now,
     updated_at: now,
@@ -85,7 +85,7 @@ export async function createVisit(db: Database, args: unknown) {
           visit_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           provider_id: inserted?.provider_id?.toString(),
         }, null, 2),
       },
@@ -133,7 +133,7 @@ export async function updateVisit(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           visit_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           provider_id: result.provider_id?.toString(),
         }, null, 2),
       },
@@ -162,7 +162,7 @@ export async function getVisit(db: Database, args: unknown) {
           ...visit,
           _id: visit._id.toString(),
           visit_id: visit._id.toString(),
-          patient_id: visit.patient_id.toString(),
+          dependent_id: visit.dependent_id.toString(),
           provider_id: visit.provider_id?.toString(),
         }, null, 2),
       },

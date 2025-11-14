@@ -1,5 +1,5 @@
-import { PatientViewer } from '@/components/shared/PatientViewer';
+import { DependentViewer } from '@/components/shared/DependentViewer';
 
 export default function Home() {
-  return <PatientViewer />;
+  return <DependentViewer />;
 }

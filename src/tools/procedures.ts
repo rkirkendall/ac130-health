@@ -14,8 +14,8 @@ export async function createProcedure(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const procedures = validated.map(p => {
-      if (!ObjectId.isValid(p.patient_id)) {
-        throw new Error(`Invalid patient_id: ${p.patient_id}`);
+      if (!ObjectId.isValid(p.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${p.dependent_id}`);
       }
       if (p.performed_by && !ObjectId.isValid(p.performed_by)) {
         throw new Error(`Invalid performed_by provider_id: ${p.performed_by}`);
@@ -23,7 +23,7 @@ export async function createProcedure(db: Database, args: unknown) {
 
       return {
         ...p,
-        patient_id: new ObjectId(p.patient_id),
+        dependent_id: new ObjectId(p.dependent_id),
         performed_by: p.performed_by ? new ObjectId(p.performed_by) : undefined,
         created_at: now,
         updated_at: now,
@@ -46,7 +46,7 @@ export async function createProcedure(db: Database, args: unknown) {
               ...p,
               _id: p._id.toString(),
               procedure_id: p._id.toString(),
-              patient_id: p.patient_id.toString(),
+              dependent_id: p.dependent_id.toString(),
               performed_by: p.performed_by?.toString(),
             })),
           }, null, 2),
@@ -56,8 +56,8 @@ export async function createProcedure(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.performed_by && !ObjectId.isValid(validated.performed_by)) {
@@ -66,7 +66,7 @@ export async function createProcedure(db: Database, args: unknown) {
   
   const procedure = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     performed_by: validated.performed_by ? new ObjectId(validated.performed_by) : undefined,
     created_at: now,
     updated_at: now,
@@ -85,7 +85,7 @@ export async function createProcedure(db: Database, args: unknown) {
           procedure_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           performed_by: inserted?.performed_by?.toString(),
         }, null, 2),
       },
@@ -133,7 +133,7 @@ export async function updateProcedure(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           procedure_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           performed_by: result.performed_by?.toString(),
         }, null, 2),
       },
@@ -162,7 +162,7 @@ export async function getProcedure(db: Database, args: unknown) {
           ...procedure,
           _id: procedure._id.toString(),
           procedure_id: procedure._id.toString(),
-          patient_id: procedure.patient_id.toString(),
+          dependent_id: procedure.dependent_id.toString(),
           performed_by: procedure.performed_by?.toString(),
         }, null, 2),
       },

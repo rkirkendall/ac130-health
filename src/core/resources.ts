@@ -13,9 +13,9 @@ export const HEALTH_SUMMARY_OUTLINE_URI = 'guide://health_summary/outline';
 
 export const HEALTH_SUMMARY_OUTLINE_MARKDOWN = `# Health Summary Outline
 
-Use this structure whenever you generate or refresh a patient's health summary. Keep the tone clinical but approachable, write in short paragraphs or bullet points, and highlight the most actionable details first.
+Use this structure whenever you generate or refresh a dependent's health summary. Keep the tone clinical but approachable, write in short paragraphs or bullet points, and highlight the most actionable details first.
 
-## 1. Patient Snapshot
+## 1. Dependent Snapshot
 - Name (or initials) and age
 - Sex/gender, pronouns if given
 - Key demographics or social context (caregiver, living situation, support system)
@@ -41,7 +41,7 @@ Use this structure whenever you generate or refresh a patient's health summary. 
 
 ## 6. Care Plan & Follow-ups
 - Upcoming appointments or monitoring checkpoints
-- Education provided to patient/caregiver
+- Education provided to dependent/caregiver
 - Action items for the care team (with owners when possible)
 
 ## 7. Risks & Watch Items
@@ -60,7 +60,7 @@ const SHARED_RESOURCES: SharedResourceContent[] = [
   {
     uri: HEALTH_SUMMARY_OUTLINE_URI,
     name: 'Health Summary Outline',
-    description: 'Standard outline and writing guidance for patient health summaries.',
+    description: 'Standard outline and writing guidance for dependent health summaries.',
     mimeType: 'text/markdown',
     text: HEALTH_SUMMARY_OUTLINE_MARKDOWN,
   },

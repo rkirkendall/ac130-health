@@ -54,7 +54,7 @@ const db = new Database(MONGO_URI, DB_NAME);
 type SamplingExecutionStatus = 'updated' | 'failed' | 'skipped';
 
 interface HealthSummarySamplingStatus {
-  patient_id: string;
+  dependent_id: string;
   status: SamplingExecutionStatus;
   reason: string;
   model?: string;
@@ -105,7 +105,7 @@ async function executeHealthSummarySampling(
   if (!clientCapabilities?.sampling) {
     for (const plan of plans) {
       statuses.push({
-        patient_id: plan.patientId,
+        dependent_id: plan.dependentId,
         status: 'skipped',
         reason: 'Client does not advertise the sampling capability.',
       });
@@ -116,7 +116,7 @@ async function executeHealthSummarySampling(
   if (typeof extra?.sendRequest !== 'function') {
     for (const plan of plans) {
       statuses.push({
-        patient_id: plan.patientId,
+        dependent_id: plan.dependentId,
         status: 'failed',
         reason: 'Sampling request channel unavailable for this transport.',
       });
@@ -127,7 +127,7 @@ async function executeHealthSummarySampling(
   for (const plan of plans) {
     if (extra.signal?.aborted) {
       statuses.push({
-        patient_id: plan.patientId,
+        dependent_id: plan.dependentId,
         status: 'failed',
         reason: 'Sampling aborted before execution.',
       });
@@ -169,18 +169,18 @@ async function executeHealthSummarySampling(
       }
 
       await updateHealthSummary(db, {
-        patient_id: plan.patientId,
+        dependent_id: plan.dependentId,
         summary_text: summaryText,
       });
 
       try {
-        await server.sendResourceUpdated({ uri: `summary://patient/${plan.patientId}` });
+        await server.sendResourceUpdated({ uri: `summary://dependent/${plan.dependentId}` });
       } catch (notificationError) {
         console.warn('Failed to emit resource update notification:', notificationError);
       }
 
       statuses.push({
-        patient_id: plan.patientId,
+        dependent_id: plan.dependentId,
         status: 'updated',
         reason: 'Health summary regenerated via sampling.',
         model: samplingResult.model,
@@ -188,7 +188,7 @@ async function executeHealthSummarySampling(
       });
     } catch (error) {
       statuses.push({
-        patient_id: plan.patientId,
+        dependent_id: plan.dependentId,
         status: 'failed',
         reason: error instanceof Error ? error.message : String(error),
       });
@@ -217,7 +217,7 @@ async function runHealthSummarySampling(
   } catch (error) {
     mergeSamplingMeta(result, [
       {
-        patient_id: plans[0]?.patientId ?? 'unknown',
+        dependent_id: plans[0]?.dependentId ?? 'unknown',
         status: 'failed',
         reason: error instanceof Error ? error.message : String(error),
       },
@@ -243,16 +243,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 USAGE PATTERNS:
 
 1. Single Record Creation:
-   Use "data" as an object: { "patient_id": "123...", "test_name": "CBC", ... }
+   Use "data" as an object: { "dependent_id": "123...", "test_name": "CBC", ... }
 
 2. Batch Creation (Multiple Records):
-   Use "data" as an array: [{ "patient_id": "123...", "test_name": "CBC", ... }, { "patient_id": "123...", "test_name": "BMP", ... }]
+   Use "data" as an array: [{ "dependent_id": "123...", "test_name": "CBC", ... }, { "dependent_id": "123...", "test_name": "BMP", ... }]
 
 EXAMPLE - Create Single Lab:
   {
     "resource_type": "lab",
     "data": {
-      "patient_id": "507f1f77bcf86cd799439011",
+      "dependent_id": "507f1f77bcf86cd799439011",
       "test_name": "Complete Blood Count",
       "results": [
         { "test": "WBC", "value": 7.5, "unit": "K/uL", "reference_range": "4.0-11.0" },
@@ -268,12 +268,12 @@ EXAMPLE - Batch Create Labs:
     "resource_type": "lab",
     "data": [
       {
-        "patient_id": "507f1f77bcf86cd799439011",
+        "dependent_id": "507f1f77bcf86cd799439011",
         "test_name": "CBC",
         "results": [{ "test": "WBC", "value": 7.5, "unit": "K/uL" }]
       },
       {
-        "patient_id": "507f1f77bcf86cd799439011",
+        "dependent_id": "507f1f77bcf86cd799439011",
         "test_name": "BMP",
         "results": [{ "test": "Sodium", "value": 140, "unit": "mEq/L" }]
       }
@@ -384,14 +384,14 @@ EXAMPLE - Batch Create Labs:
       },
       {
         name: 'update_health_summary',
-        description: 'Update the active health summary for a patient. This should be a concise summary of current conditions, active medications, recent visits, pending labs, and upcoming follow-ups.',
+        description: 'Update the active health summary for a dependent. This should be a concise summary of current conditions, active medications, recent visits, pending labs, and upcoming follow-ups.',
         inputSchema: {
           type: 'object',
           properties: {
-            patient_id: { type: 'string', description: 'Patient ID' },
+            dependent_id: { type: 'string', description: 'Dependent ID' },
             summary_text: { type: 'string', description: 'Updated health summary text' },
           },
-          required: ['patient_id', 'summary_text'],
+          required: ['dependent_id', 'summary_text'],
         },
       },
     ],
@@ -514,9 +514,9 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
   return {
     resources: [
       {
-        uri: 'summary://patient/{patient_id}',
+        uri: 'summary://dependent/{dependent_id}',
         name: 'Active Health Summary',
-        description: 'Current health summary for a patient',
+        description: 'Current health summary for a dependent',
         mimeType: 'text/plain',
       },
       ...sharedResources,
@@ -529,9 +529,9 @@ server.setRequestHandler(ListResourcesRequestSchema, async () => {
 server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
   const uri = request.params.uri;
   
-  if (uri.startsWith('summary://patient/')) {
-    const patientId = uri.replace('summary://patient/', '');
-    const summaryText = await getHealthSummary(db, patientId);
+  if (uri.startsWith('summary://dependent/')) {
+    const dependentId = uri.replace('summary://dependent/', '');
+    const summaryText = await getHealthSummary(db, dependentId);
     
     return {
       contents: [
@@ -601,7 +601,7 @@ server.setRequestHandler(ReadResourceRequestSchema, async (request) => {
     }
   }
   
-  throw new Error(`Unknown resource: ${uri}. Available resources include schema://{resource_type} and summary://patient/{patient_id}`);
+  throw new Error(`Unknown resource: ${uri}. Available resources include schema://{resource_type} and summary://dependent/{dependent_id}`);
 });
 
 async function main() {

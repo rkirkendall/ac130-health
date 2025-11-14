@@ -14,8 +14,8 @@ export async function createImmunization(db: Database, args: unknown) {
   // Handle bulk creation
   if (Array.isArray(validated)) {
     const immunizations = validated.map(i => {
-      if (!ObjectId.isValid(i.patient_id)) {
-        throw new Error(`Invalid patient_id: ${i.patient_id}`);
+      if (!ObjectId.isValid(i.dependent_id)) {
+        throw new Error(`Invalid dependent_id: ${i.dependent_id}`);
       }
       if (i.administered_by && !ObjectId.isValid(i.administered_by)) {
         throw new Error(`Invalid administered_by provider_id: ${i.administered_by}`);
@@ -23,7 +23,7 @@ export async function createImmunization(db: Database, args: unknown) {
 
       return {
         ...i,
-        patient_id: new ObjectId(i.patient_id),
+        dependent_id: new ObjectId(i.dependent_id),
         administered_by: i.administered_by ? new ObjectId(i.administered_by) : undefined,
         created_at: now,
         updated_at: now,
@@ -46,7 +46,7 @@ export async function createImmunization(db: Database, args: unknown) {
               ...i,
               _id: i._id.toString(),
               immunization_id: i._id.toString(),
-              patient_id: i.patient_id.toString(),
+              dependent_id: i.dependent_id.toString(),
               administered_by: i.administered_by?.toString(),
             })),
           }, null, 2),
@@ -56,8 +56,8 @@ export async function createImmunization(db: Database, args: unknown) {
   }
 
   // Handle single creation
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.administered_by && !ObjectId.isValid(validated.administered_by)) {
@@ -66,7 +66,7 @@ export async function createImmunization(db: Database, args: unknown) {
   
   const immunization = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     administered_by: validated.administered_by ? new ObjectId(validated.administered_by) : undefined,
     created_at: now,
     updated_at: now,
@@ -85,7 +85,7 @@ export async function createImmunization(db: Database, args: unknown) {
           immunization_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           administered_by: inserted?.administered_by?.toString(),
         }, null, 2),
       },
@@ -133,7 +133,7 @@ export async function updateImmunization(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           immunization_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           administered_by: result.administered_by?.toString(),
         }, null, 2),
       },
@@ -162,7 +162,7 @@ export async function getImmunization(db: Database, args: unknown) {
           ...immunization,
           _id: immunization._id.toString(),
           immunization_id: immunization._id.toString(),
-          patient_id: immunization.patient_id.toString(),
+          dependent_id: immunization.dependent_id.toString(),
           administered_by: immunization.administered_by?.toString(),
         }, null, 2),
       },

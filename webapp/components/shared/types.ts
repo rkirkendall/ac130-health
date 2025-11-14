@@ -1,11 +1,33 @@
-export interface Patient {
+export interface Dependent {
   _id: string;
-  name?: { given?: string; family?: string };
+  dependent_id: string;
+  record_identifier: string;
   external_ref?: string;
-  relationship?: string;
-  dob?: string;
+  archived?: boolean;
+  phi_vault_id?: string;
+  has_phi?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PhiVaultEntry {
+  _id?: string;
+  dependent_id?: string;
+  legal_name?: { given?: string; family?: string };
+  preferred_name?: string;
+  relationship_note?: string;
+  full_dob?: string;
+  birth_year?: number;
   sex?: string;
   contact?: { phone?: string; email?: string };
+  address?: {
+    line1?: string;
+    line2?: string;
+    city?: string;
+    state?: string;
+    postal_code?: string;
+    country?: string;
+  };
   created_at?: string;
   updated_at?: string;
 }
@@ -21,7 +43,7 @@ export interface RecordData {
 }
 
 export const RECORD_TYPES = [
-  { type: 'active_summaries', label: 'Patient Profile' },
+  { type: 'active_summaries', label: 'Dependent Profile' },
   { type: 'visits', label: 'Visits' },
   { type: 'prescriptions', label: 'Prescriptions' },
   { type: 'labs', label: 'Labs' },

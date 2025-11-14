@@ -9,7 +9,8 @@ import type {
 
 const OBJECT_ID_FIELDS = new Set<string>([
   '_id',
-  'patient_id',
+  'dependent_id',
+  'phi_vault_id',
   'provider_id',
   'visit_id',
   'prescription_id',

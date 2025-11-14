@@ -9,8 +9,8 @@ import {
 export async function createTreatment(db: Database, args: unknown) {
   const validated = CreateTreatmentSchema.parse(args);
   
-  if (!ObjectId.isValid(validated.patient_id)) {
-    throw new Error('Invalid patient_id');
+  if (!ObjectId.isValid(validated.dependent_id)) {
+    throw new Error('Invalid dependent_id');
   }
   
   if (validated.provider_id && !ObjectId.isValid(validated.provider_id)) {
@@ -20,7 +20,7 @@ export async function createTreatment(db: Database, args: unknown) {
   const now = new Date();
   const treatment = {
     ...validated,
-    patient_id: new ObjectId(validated.patient_id),
+    dependent_id: new ObjectId(validated.dependent_id),
     provider_id: validated.provider_id ? new ObjectId(validated.provider_id) : undefined,
     created_at: now,
     updated_at: now,
@@ -39,7 +39,7 @@ export async function createTreatment(db: Database, args: unknown) {
           treatment_id: result.insertedId.toString(),
           ...inserted,
           _id: inserted?._id.toString(),
-          patient_id: inserted?.patient_id.toString(),
+          dependent_id: inserted?.dependent_id.toString(),
           provider_id: inserted?.provider_id?.toString(),
         }, null, 2),
       },
@@ -87,7 +87,7 @@ export async function updateTreatment(db: Database, args: unknown) {
           ...result,
           _id: result._id.toString(),
           treatment_id: result._id.toString(),
-          patient_id: result.patient_id.toString(),
+          dependent_id: result.dependent_id.toString(),
           provider_id: result.provider_id?.toString(),
         }, null, 2),
       },
@@ -116,7 +116,7 @@ export async function getTreatment(db: Database, args: unknown) {
           ...treatment,
           _id: treatment._id.toString(),
           treatment_id: treatment._id.toString(),
-          patient_id: treatment.patient_id.toString(),
+          dependent_id: treatment.dependent_id.toString(),
           provider_id: treatment.provider_id?.toString(),
         }, null, 2),
       },
