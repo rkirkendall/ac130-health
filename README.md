@@ -21,6 +21,15 @@ npm install
 
 `run-mcp-docker.sh` reuses the long-lived container built by Docker (which already runs `npm run build` inside the image) and executes `dist/index.js` inside it. If you change TypeScript source, rebuild the image with `docker compose build mcp-server` so the container picks up the new `dist/`.
 
+### Run schema migrations
+If you are upgrading from the legacy patient-centric schema, run:
+
+```bash
+npm run migrate
+```
+
+The migrator renames the `patients` collection to `dependents`, moves PHI into the new `phi_vault`, and updates every record to reference `dependent_id`. It is safe to run multiple times; subsequent runs exit immediately after detecting the recorded migration.
+
 ### Health Summary Regeneration
 - CRUD tool responses now include `_meta.health_summary_sampling` metadata with the context needed to regenerate a patient’s active summary. When an MCP client supports `sampling/createMessage`, the server automatically packages a prompt with the updated records, the prior summary, and the shared outline, then writes the returned text via `update_health_summary`.
 - Clients that do not advertise the sampling capability keep working as before—they simply receive the metadata (plus the existing `_meta.suggested_actions` hint) and can choose to handle summary refreshes on their own.
@@ -43,7 +52,7 @@ Prefer running the server directly on the host instead of inside Docker? Replace
 
 ## Data Schema & MCP Details
 ### Collections
-- `patients`, `providers`, `visits`, `prescriptions`, `labs`, `treatments`, `conditions`, `allergies`, `immunizations`, `vital_signs`, `procedures`, `imaging`, `insurance`, `active_summaries`
+- `dependents`, `providers`, `visits`, `prescriptions`, `labs`, `treatments`, `conditions`, `allergies`, `immunizations`, `vital_signs`, `procedures`, `imaging`, `insurance`, `active_summaries`, `phi_vault`
 
 ### Tools (6 total)
 - `create_resource` — insert one or many records for any registered `resource_type`
@@ -51,14 +60,14 @@ Prefer running the server directly on the host instead of inside Docker? Replace
 - `update_resource` — patch fields on an existing record
 - `delete_resource` — remove a record by ID
 - `list_resource` — enumerate records with optional filters (see schema resources for filter fields)
-- `update_health_summary` — maintain the `summary://patient/{dependent_id}` resource
+- `update_health_summary` — maintain the `summary://dependent/{dependent_id}` resource
 
 Each CRUD tool accepts a `resource_type` drawn from the 13 collections above.
 
 ### Prompts & Resources
 - Prompts: 1 (`care_manager_base`)
 - Resources: 15
-  - `summary://patient/{dependent_id}` live health summaries
+  - `summary://dependent/{dependent_id}` live health summaries
   - `guide://health_summary/outline` authoring guidance
   - `schema://{resource_type}` — JSON payload bundling the create/update/list schemas for that resource type
 

@@ -25,7 +25,7 @@ interface DependentViewerProps {
 type PhiState = 'hidden' | 'loading' | 'visible' | 'error';
 
 const FIELD_LABEL_OVERRIDES: Record<string, string> = {
-  record_identifier: 'Pseudonym',
+  record_identifier: 'Identifier',
   full_name: 'Name',
   patient_name: 'Name',
   provider_name: 'Provider Name',
@@ -103,6 +103,34 @@ const formatAddress = (address?: PhiVaultEntry['address']) => {
     .map(part => (part ? part.trim() : ''))
     .filter(Boolean);
   return parts.length > 0 ? parts.join('\n') : null;
+};
+
+const getRecordTitle = (
+  recordType: string,
+  record: Record<string, any>,
+  index: number
+): string => {
+  if (recordType === 'prescriptions') {
+    return record.medication_name || record.title || `Prescription ${index + 1}`;
+  }
+  if (recordType === 'procedures') {
+    return record.procedure_name || record.title || `Procedure ${index + 1}`;
+  }
+  if (recordType === 'visits') {
+    return (
+      record.reason ||
+      record.type ||
+      formatTitleCandidate(record.description) ||
+      `Visit ${index + 1}`
+    );
+  }
+
+  return (
+    formatTitleCandidate(record.name) ||
+    formatTitleCandidate(record.title) ||
+    formatTitleCandidate(record.description) ||
+    `Record ${index + 1}`
+  );
 };
 
 export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
@@ -215,7 +243,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     if (!selectedDependentDetails.has_phi) {
       body = (
         <p className="text-sm text-muted-foreground">
-          No PHI has been captured for this dependent yet.
+          No PHI has been captured for this profile yet.
         </p>
       );
     } else if (phiState === 'loading') {
@@ -261,7 +289,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
           </div>
         ) : (
           <p className="text-sm text-muted-foreground">
-            No PHI fields are populated for this dependent.
+            No PHI fields are populated for this profile.
           </p>
         );
     }
@@ -289,7 +317,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     );
   };
 
-  const renderDependentProfile = () => {
+const renderProfile = () => {
     if (!selectedDependentDetails) {
       return (
         <Card>
@@ -304,7 +332,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
 
     const baseFields = [
       {
-        label: 'Pseudonym',
+        label: 'Identifier',
         value: selectedDependentDetails.record_identifier,
       },
       { label: 'External Reference', value: selectedDependentDetails.external_ref },
@@ -327,7 +355,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg">Dependent Profile</CardTitle>
+          <CardTitle className="text-lg">Profile</CardTitle>
           {latestSummary ? (
             <p className="text-sm text-muted-foreground">
               Health summary updated {formatDateValue(latestSummary.updated_at) ?? 'N/A'}
@@ -364,7 +392,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground">
-              No health summary has been recorded for this dependent.
+              No health summary has been recorded for this profile.
             </p>
           )}
         </CardContent>
@@ -383,7 +411,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   if (dependents.length === 0) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">No dependents found in database.</p>
+        <p className="text-lg">No profiles found in database.</p>
       </div>
     );
   }
@@ -394,12 +422,12 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
         <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Dependent
+              Profile
             </p>
             <div className="w-full min-w-0 sm:w-64">
               <Select value={selectedDependent} onValueChange={setSelectedDependent}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select dependent" />
+                  <SelectValue placeholder="Select profile" />
                 </SelectTrigger>
                 <SelectContent>
                   {dependents.map(dependent => (
@@ -457,7 +485,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
               </h2>
 
               {selectedRecordType === 'active_summaries' ? (
-                renderDependentProfile()
+                renderProfile()
               ) : records.length === 0 ? (
                 <Card>
                   <CardContent className="p-6">
@@ -554,11 +582,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
               ) : (
                 <div className="space-y-4">
                   {records.map((record, index) => {
-                    const titleCandidate =
-                      formatTitleCandidate(record.name) ||
-                      formatTitleCandidate(record.title) ||
-                      formatTitleCandidate(record.description) ||
-                      `Record ${index + 1}`;
+                    const titleCandidate = getRecordTitle(selectedRecordType, record, index);
 
                     return (
                       <Card key={record._id || index}>
