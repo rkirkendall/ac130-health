@@ -323,7 +323,7 @@ const renderProfile = () => {
         <Card>
           <CardContent className="p-6">
             <p className="text-muted-foreground">
-              Select a dependent to view their information.
+              Select a patient to view their information.
             </p>
           </CardContent>
         </Card>
