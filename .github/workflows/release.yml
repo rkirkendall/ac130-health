@@ -1,0 +1,70 @@
+name: Publish health-record-mcp
+
+on:
+  push:
+    tags:
+      - 'ac130-v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      NODE_VERSION: '20'
+      NPM_REGISTRY: https://us-central1-npm.pkg.dev/ac130-hosted/mcp-npm/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      - name: Ensure dist/ is clean
+        run: |
+          if git status --porcelain -- dist | grep .; then
+            echo "::error::npm run build produced changes in dist/. Run npm run build locally and commit the results."
+            git status --short dist
+            exit 1
+          fi
+
+      - name: Verify package version matches tag
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION=${GITHUB_REF_NAME#ac130-v}
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::package.json version ($PKG_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/187385239875/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: gha-deploy@ac130-hosted.iam.gserviceaccount.com
+
+      - name: Install gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure npm for Artifact Registry
+        run: |
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          npm config set registry $NPM_REGISTRY
+          npm config set //us-central1-npm.pkg.dev/ac130-hosted/mcp-npm/:_authToken "$ACCESS_TOKEN"
+
+      - name: Publish package
+        run: npm publish --registry $NPM_REGISTRY
+

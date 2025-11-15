@@ -39,6 +39,9 @@
   ],
   "author": "",
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://us-central1-npm.pkg.dev/ac130-hosted/mcp-npm/"
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.4",
     "dotenv": "^16.4.7",
