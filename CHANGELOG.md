@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.9.1] - 2025-11-16
+
+### Fixed
+- Normalize `duplicate_check_confirmed` inputs so hosted MCP clients can set the flag inside `data` objects or send string/number truthy values without tripping the duplicate guard.
+- Ensured the create-resource path hoists the flag before validation, preventing false duplicate-check failures for prescriptions, conditions, labs, and visits.
+
 ## [0.9.0] - 2025-01-08 (Pre-release)
 
 ### Added
