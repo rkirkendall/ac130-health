@@ -1,8 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import {
@@ -14,6 +13,16 @@ import {
 } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
 import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 import { Lock, Settings, Plus, Edit, Trash2 } from 'lucide-react';
 import { ResourceForm } from './ResourceForm';
 import { DeleteConfirmation } from './DeleteConfirmation';
@@ -30,6 +39,20 @@ interface DependentViewerProps {
 }
 
 type PhiState = 'hidden' | 'loading' | 'visible' | 'error';
+
+const PHI_FIELD_OPTIONS = [
+  { value: 'legal_name', label: 'Full Legal Name' },
+  { value: 'preferred_name', label: 'Preferred Name' },
+  { value: 'relationship_note', label: 'Relationship Note' },
+  { value: 'full_dob', label: 'Full Date of Birth' },
+  { value: 'birth_year', label: 'Birth Year' },
+  { value: 'sex', label: 'Sex' },
+  { value: 'contact_phone', label: 'Phone Number' },
+  { value: 'contact_email', label: 'Email' },
+  { value: 'address_line1', label: 'Address' },
+] as const;
+
+const DEFAULT_PHI_FIELD = PHI_FIELD_OPTIONS[0]?.value ?? 'legal_name';
 
 const FIELD_LABEL_OVERRIDES: Record<string, string> = {
   record_identifier: 'Identifier',
@@ -261,6 +284,11 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const [phiState, setPhiState] = useState<PhiState>('hidden');
   const [phiEntry, setPhiEntry] = useState<PhiVaultEntry | null>(null);
   const [phiError, setPhiError] = useState<string | null>(null);
+  const [showPhiModal, setShowPhiModal] = useState(false);
+  const [phiModalType, setPhiModalType] = useState(DEFAULT_PHI_FIELD);
+  const [phiModalValue, setPhiModalValue] = useState('');
+  const [phiModalError, setPhiModalError] = useState<string | null>(null);
+  const [phiSaving, setPhiSaving] = useState(false);
 
   // CRUD state
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -275,6 +303,22 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     setPhiEntry(null);
     setPhiError(null);
   }, []);
+
+  const resetPhiModalState = () => {
+    setPhiModalValue('');
+    setPhiModalError(null);
+    setPhiModalType(DEFAULT_PHI_FIELD);
+  };
+
+  const openPhiModal = () => {
+    resetPhiModalState();
+    setShowPhiModal(true);
+  };
+
+  const closePhiModal = () => {
+    setShowPhiModal(false);
+    resetPhiModalState();
+  };
 
   const handleSelectDependent = useCallback((dependentId: string) => {
     setSelectedDependent(dependentId);
@@ -372,6 +416,58 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     }
   };
 
+  const handlePhiSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedDependent) {
+      setPhiModalError('Select a dependent before adding PHI.');
+      return;
+    }
+    const trimmedValue = phiModalValue.trim();
+    if (!trimmedValue) {
+      setPhiModalError('Value is required.');
+      return;
+    }
+
+    setPhiSaving(true);
+    setPhiModalError(null);
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/phi`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ field: phiModalType, value: trimmedValue }),
+        }
+      );
+      const updatedEntry = await parseJsonResponse<PhiVaultEntry>(response);
+
+      if (!updatedEntry) {
+        throw new Error('Failed to save PHI entry.');
+      }
+
+      setPhiEntry(updatedEntry);
+      setPhiState('visible');
+      setDependents(prev =>
+        prev.map(dependent =>
+          dependent._id === selectedDependent
+            ? {
+                ...dependent,
+                has_phi: true,
+                phi_vault_id: updatedEntry._id,
+              }
+            : dependent
+        )
+      );
+      closePhiModal();
+    } catch (error) {
+      console.error('Error saving PHI entry:', error);
+      setPhiModalError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPhiSaving(false);
+    }
+  };
+
   const renderPhiVaultSection = () => {
     if (!selectedDependentDetails) {
       return null;
@@ -441,19 +537,28 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     }
 
     return (
-      <div className="rounded-lg border border-dashed border-slate-300 p-4">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm font-semibold flex items-center gap-2">
-              <Lock className="h-4 w-4 text-primary" aria-hidden />
-              <span>PHI Vault</span>
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {selectedDependentDetails.has_phi
-                ? 'Sensitive identifiers are vaulted separately.'
-                : 'Vault entry empty'}
-            </p>
-          </div>
+    <div className="rounded-lg border border-dashed border-slate-300 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold flex items-center gap-2">
+            <Lock className="h-4 w-4 text-primary" aria-hidden />
+            <span>PHI Vault</span>
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {selectedDependentDetails.has_phi
+              ? 'Sensitive identifiers are vaulted separately.'
+              : 'Vault entry empty'}
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={openPhiModal}
+            disabled={phiSaving}
+          >
+            Update PHI
+          </Button>
           <button
             className="text-sm font-semibold text-primary underline-offset-4 hover:underline"
             onClick={handleRevealPhi}
@@ -461,6 +566,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
             {buttonLabel}
           </button>
         </div>
+      </div>
         <div className="mt-3">{body}</div>
       </div>
     );
@@ -1016,6 +1122,82 @@ const renderProfile = () => {
         description={`Are you sure you want to delete this ${selectedRecordType.replace('_', ' ')} record? This action cannot be undone.`}
         loading={crudLoading}
       />
+
+  <Dialog
+    open={showPhiModal}
+    onOpenChange={open => {
+      if (!open) {
+        closePhiModal();
+      }
+    }}
+  >
+    <DialogContent className="sm:max-w-[520px]">
+      <DialogHeader>
+        <DialogTitle>Update PHI Entry</DialogTitle>
+        <DialogDescription>
+          Choose which piece of personal health information to store and provide the
+          value you want to vault.
+        </DialogDescription>
+      </DialogHeader>
+      <form onSubmit={handlePhiSubmit}>
+        <div className="grid gap-4 py-2">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="phi-field" className="text-right">
+              Field
+            </Label>
+            <div className="col-span-3">
+              <Select
+                value={phiModalType}
+                onValueChange={value => setPhiModalType(value)}
+              >
+                <SelectTrigger id="phi-field">
+                  <SelectValue placeholder="Select field" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PHI_FIELD_OPTIONS.map(option => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="phi-value" className="text-right">
+              Value
+            </Label>
+            <div className="col-span-3 space-y-1">
+              <Input
+                id="phi-value"
+                value={phiModalValue}
+                onChange={event => setPhiModalValue(event.target.value)}
+                placeholder="Enter field value"
+                required
+                disabled={phiSaving}
+              />
+              {phiModalError ? (
+                <p className="text-xs text-red-600">{phiModalError}</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        <DialogFooter className="pt-4">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={closePhiModal}
+            disabled={phiSaving}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={phiSaving}>
+            {phiSaving ? 'Saving…' : 'Save'}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
     </div>
   );
 }

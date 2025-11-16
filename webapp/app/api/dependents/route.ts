@@ -16,6 +16,7 @@ export async function GET() {
       _id: dependent._id.toString(),
       dependent_id: dependent._id.toString(),
       phi_vault_id: dependent.phi_vault_id ? dependent.phi_vault_id.toString() : undefined,
+      has_phi: Boolean(dependent.phi_vault_id),
     }));
     
     return NextResponse.json(sanitized);
