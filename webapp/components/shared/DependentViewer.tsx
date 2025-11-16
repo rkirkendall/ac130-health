@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import {
   Select,
@@ -227,32 +227,48 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const [phiEntry, setPhiEntry] = useState<PhiVaultEntry | null>(null);
   const [phiError, setPhiError] = useState<string | null>(null);
 
+  const resetPhiState = useCallback(() => {
+    setPhiState('hidden');
+    setPhiEntry(null);
+    setPhiError(null);
+  }, []);
+
+  const handleSelectDependent = useCallback((dependentId: string) => {
+    setSelectedDependent(dependentId);
+    setRecordCounts([]);
+    setSelectedRecordType('');
+    resetPhiState();
+  }, [resetPhiState]);
+
   useEffect(() => {
     fetch(`${apiBaseUrl}/api/dependents`)
       .then(parseJsonResponse<Dependent[]>)
       .then(data => {
         const list = Array.isArray(data) ? data : [];
         setDependents(list);
-        if (list.length > 0) {
-          setSelectedDependent(list[0]._id);
-        }
+        handleSelectDependent(list[0]?._id ?? '');
         setLoading(false);
       })
       .catch(err => {
         console.error('Error fetching dependents:', err);
         setLoading(false);
       });
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, handleSelectDependent]);
 
   useEffect(() => {
     if (!selectedDependent) {
-      setRecordCounts([]);
       return;
     }
+
+    let cancelled = false;
 
     fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}/counts`)
       .then(parseJsonResponse<RecordCount[]>)
       .then(data => {
+        if (cancelled) {
+          return;
+        }
+
         const normalized = normalizeRecordCounts(Array.isArray(data) ? data : []);
         setRecordCounts(normalized);
         setSelectedRecordType(prev =>
@@ -262,6 +278,10 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
         );
       })
       .catch(err => console.error('Error fetching counts:', err));
+
+    return () => {
+      cancelled = true;
+    };
   }, [selectedDependent, apiBaseUrl]);
 
   useEffect(() => {
@@ -272,12 +292,6 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
         .catch(err => console.error('Error fetching records:', err));
     }
   }, [selectedDependent, selectedRecordType, apiBaseUrl]);
-
-  useEffect(() => {
-    setPhiState('hidden');
-    setPhiEntry(null);
-    setPhiError(null);
-  }, [selectedDependent]);
 
   const selectedDependentDetails = useMemo(
     () => dependents.find(dependent => dependent._id === selectedDependent),
@@ -325,7 +339,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
 
     let body: React.ReactNode = (
       <p className="text-sm text-muted-foreground">
-        PHI is stored securely and excluded from MCP responses. Select "Reveal PHI" to view it in this app.
+        PHI is stored securely and excluded from MCP responses. Select the Reveal PHI button to view it in this app.
       </p>
     );
 
@@ -514,7 +528,7 @@ const renderProfile = () => {
               Profile
             </p>
             <div className="w-full min-w-0 sm:w-64">
-              <Select value={selectedDependent} onValueChange={setSelectedDependent}>
+              <Select value={selectedDependent} onValueChange={handleSelectDependent}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select profile" />
                 </SelectTrigger>
