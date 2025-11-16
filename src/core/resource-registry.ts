@@ -83,7 +83,7 @@ export interface ResourceDefinition {
 export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   dependent: {
     name: 'dependent',
-    description: 'Dependent records',
+    description: 'Profiles',
     collectionName: 'dependents',
     idField: 'dependent_id',
     createSchema: CreateDependentSchema,
@@ -94,7 +94,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   provider: {
     name: 'provider',
-    description: 'Healthcare provider records',
+    description: 'Healthcare providers',
     collectionName: 'providers',
     idField: 'provider_id',
     createSchema: CreateProviderSchema,
@@ -104,7 +104,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   visit: {
     name: 'visit',
-    description: 'Visit/encounter records',
+    description: 'Visits & encounters',
     collectionName: 'visits',
     idField: 'visit_id',
     createSchema: CreateVisitSchema,
@@ -115,7 +115,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   prescription: {
     name: 'prescription',
-    description: 'Prescription records',
+    description: 'Prescriptions',
     collectionName: 'prescriptions',
     idField: 'prescription_id',
     createSchema: CreatePrescriptionSchema,
@@ -126,7 +126,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   lab: {
     name: 'lab',
-    description: 'Lab order/result records',
+    description: 'Lab orders & results',
     collectionName: 'labs',
     idField: 'lab_id',
     createSchema: CreateLabSchema,
@@ -137,7 +137,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   treatment: {
     name: 'treatment',
-    description: 'Treatment plan records',
+    description: 'Treatment plans',
     collectionName: 'treatments',
     idField: 'treatment_id',
     createSchema: CreateTreatmentSchema,
@@ -148,7 +148,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   condition: {
     name: 'condition',
-    description: 'Condition/diagnosis records',
+    description: 'Conditions & diagnoses',
     collectionName: 'conditions',
     idField: 'condition_id',
     createSchema: CreateConditionSchema,
@@ -159,7 +159,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   allergy: {
     name: 'allergy',
-    description: 'Allergy records',
+    description: 'Allergies',
     collectionName: 'allergies',
     idField: 'allergy_id',
     createSchema: CreateAllergySchema,
@@ -170,7 +170,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   immunization: {
     name: 'immunization',
-    description: 'Immunization/vaccination records',
+    description: 'Immunizations & vaccinations',
     collectionName: 'immunizations',
     idField: 'immunization_id',
     createSchema: CreateImmunizationSchema,
@@ -181,7 +181,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   vital_signs: {
     name: 'vital_signs',
-    description: 'Vital signs records',
+    description: 'Vital signs',
     collectionName: 'vital_signs',
     idField: 'vitals_id',
     createSchema: CreateVitalSignsSchema,
@@ -192,7 +192,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   procedure: {
     name: 'procedure',
-    description: 'Procedure/surgery records',
+    description: 'Procedures & surgeries',
     collectionName: 'procedures',
     idField: 'procedure_id',
     createSchema: CreateProcedureSchema,
@@ -203,7 +203,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   imaging: {
     name: 'imaging',
-    description: 'Imaging/radiology records',
+    description: 'Imaging & radiology',
     collectionName: 'imaging',
     idField: 'imaging_id',
     createSchema: CreateImagingSchema,
@@ -214,7 +214,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
   },
   insurance: {
     name: 'insurance',
-    description: 'Insurance coverage records',
+    description: 'Insurance coverage',
     collectionName: 'insurance',
     idField: 'insurance_id',
     createSchema: CreateInsuranceSchema,

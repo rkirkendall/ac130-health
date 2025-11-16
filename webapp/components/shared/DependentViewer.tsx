@@ -45,6 +45,40 @@ const HIDDEN_FIELD_KEYS = new Set([
   'database_id',
 ]);
 
+const RECORD_TYPE_ORDER = [
+  'active_summaries',
+  'visits',
+  'prescriptions',
+  'labs',
+  'conditions',
+  'allergies',
+  'immunizations',
+  'vital_signs',
+  'procedures',
+  'imaging',
+  'insurance',
+  'treatments',
+  'provider',
+  'dependent',
+] as const;
+
+const RECORD_TYPE_LABELS: Record<string, string> = {
+  active_summaries: 'Summary',
+  dependent: 'Profiles',
+  provider: 'Care Team',
+  visit: 'Visits',
+  prescription: 'Prescriptions',
+  lab: 'Labs',
+  treatment: 'Treatments',
+  condition: 'Conditions',
+  allergy: 'Allergies',
+  immunization: 'Immunizations',
+  vital_signs: 'Vital Signs',
+  procedure: 'Procedures',
+  imaging: 'Imaging',
+  insurance: 'Insurance',
+};
+
 const shouldHideField = (key: string) => {
   const lower = key.toLowerCase();
   if (HIDDEN_FIELD_KEYS.has(lower)) {
@@ -62,6 +96,54 @@ const hasRenderableValue = (value: string | null | undefined) => {
     return false;
   }
   return trimmed.toLowerCase() !== 'n/a';
+};
+
+const formatRecordTypeLabel = (type: string, fallback?: string) => {
+  if (RECORD_TYPE_LABELS[type]) {
+    return RECORD_TYPE_LABELS[type];
+  }
+
+  const cleaned = fallback
+    ?.replace(/records?/gi, '')
+    .replace(/dependent/gi, 'profile')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (cleaned) {
+    return cleaned
+      .split(' ')
+      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
+  }
+
+  return type
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+};
+
+const normalizeRecordCounts = (counts: RecordCount[]): RecordCount[] => {
+  const remaining = Array.isArray(counts) ? [...counts] : [];
+  const sorted: RecordCount[] = [];
+
+  for (const type of RECORD_TYPE_ORDER) {
+    const index = remaining.findIndex(entry => entry.type === type);
+    if (index !== -1) {
+      const [entry] = remaining.splice(index, 1);
+      sorted.push({
+        ...entry,
+        label: formatRecordTypeLabel(type, entry.label),
+      });
+    }
+  }
+
+  return [
+    ...sorted,
+    ...remaining.map(entry => ({
+      ...entry,
+      label: formatRecordTypeLabel(entry.type, entry.label),
+    })),
+  ];
 };
 
 async function parseJsonResponse<T>(res: Response): Promise<T | null> {
@@ -163,16 +245,23 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   }, [apiBaseUrl]);
 
   useEffect(() => {
-    if (selectedDependent) {
-      fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}/counts`)
-        .then(parseJsonResponse<RecordCount[]>)
-        .then(data => {
-          const counts = Array.isArray(data) ? data : [];
-          setRecordCounts(counts);
-          setSelectedRecordType(counts[0]?.type ?? '');
-        })
-        .catch(err => console.error('Error fetching counts:', err));
+    if (!selectedDependent) {
+      setRecordCounts([]);
+      return;
     }
+
+    fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}/counts`)
+      .then(parseJsonResponse<RecordCount[]>)
+      .then(data => {
+        const normalized = normalizeRecordCounts(Array.isArray(data) ? data : []);
+        setRecordCounts(normalized);
+        setSelectedRecordType(prev =>
+          prev && normalized.some(entry => entry.type === prev)
+            ? prev
+            : normalized[0]?.type ?? ''
+        );
+      })
+      .catch(err => console.error('Error fetching counts:', err));
   }, [selectedDependent, apiBaseUrl]);
 
   useEffect(() => {
@@ -481,7 +570,7 @@ const renderProfile = () => {
           <ScrollArea className="h-full">
             <div className="p-6">
               <h2 className="text-2xl font-bold mb-6">
-                {recordCounts.find(r => r.type === selectedRecordType)?.label || 'Records'}
+                {recordCounts.find(r => r.type === selectedRecordType)?.label || 'Summary'}
               </h2>
 
               {selectedRecordType === 'active_summaries' ? (

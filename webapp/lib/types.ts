@@ -43,7 +43,7 @@ export interface RecordData {
 }
 
 export const RECORD_TYPES = [
-  { type: 'active_summaries', label: 'Dependent Profile' },
+  { type: 'active_summaries', label: 'Summary' },
   { type: 'visits', label: 'Visits' },
   { type: 'prescriptions', label: 'Prescriptions' },
   { type: 'labs', label: 'Labs' },
