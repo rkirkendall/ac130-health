@@ -238,6 +238,94 @@ const CreateResourceSchema = z.object({
   duplicate_check_confirmed: z.boolean().optional(),
 });
 
+function coerceDuplicateCheckFlag(value: unknown): boolean | undefined {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') {
+      return true;
+    }
+    if (normalized === 'false') {
+      return false;
+    }
+  }
+
+  if (typeof value === 'number') {
+    if (value === 1) {
+      return true;
+    }
+    if (value === 0) {
+      return false;
+    }
+  }
+
+  return undefined;
+}
+
+function stripNestedDuplicateFlag(record: unknown): { cleaned: unknown; flag: boolean | undefined } {
+  if (!record || typeof record !== 'object' || Array.isArray(record)) {
+    return { cleaned: record, flag: undefined };
+  }
+
+  if (!Object.prototype.hasOwnProperty.call(record, 'duplicate_check_confirmed')) {
+    return { cleaned: record, flag: undefined };
+  }
+
+  const cloned = { ...(record as Record<string, unknown>) };
+  const nestedValue = cloned.duplicate_check_confirmed;
+  delete cloned.duplicate_check_confirmed;
+
+  return {
+    cleaned: cloned,
+    flag: coerceDuplicateCheckFlag(nestedValue),
+  };
+}
+
+function normalizeCreateResourceArgs(args: unknown): unknown {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    return args;
+  }
+
+  const normalized: Record<string, unknown> = { ...(args as Record<string, unknown>) };
+
+  const coercedTopLevel = coerceDuplicateCheckFlag(normalized.duplicate_check_confirmed);
+  if (coercedTopLevel !== undefined) {
+    normalized.duplicate_check_confirmed = coercedTopLevel;
+  }
+
+  const data = normalized.data;
+  if (Array.isArray(data)) {
+    let mutated = false;
+    const cleanedArray = data.map((entry) => {
+      const { cleaned, flag } = stripNestedDuplicateFlag(entry);
+      if (flag !== undefined && normalized.duplicate_check_confirmed === undefined) {
+        normalized.duplicate_check_confirmed = flag;
+      }
+      if (cleaned !== entry) {
+        mutated = true;
+      }
+      return cleaned;
+    });
+
+    if (mutated) {
+      normalized.data = cleanedArray;
+    }
+  } else {
+    const { cleaned, flag } = stripNestedDuplicateFlag(data);
+    if (flag !== undefined && normalized.duplicate_check_confirmed === undefined) {
+      normalized.duplicate_check_confirmed = flag;
+    }
+    if (cleaned !== data) {
+      normalized.data = cleaned;
+    }
+  }
+
+  return normalized;
+}
+
 const GetResourceSchema = z.object({
   resource_type: z.string(),
   id: z.string(),
@@ -829,7 +917,8 @@ export async function createResource(
   args: unknown,
   options?: CrudRuntimeOptions
 ) {
-  const validated = CreateResourceSchema.parse(args);
+  const normalizedArgs = normalizeCreateResourceArgs(args);
+  const validated = CreateResourceSchema.parse(normalizedArgs);
   let { resource_type, data, duplicate_check_confirmed } = validated;
 
   const resourceDef = getResourceDefinition(resource_type);
