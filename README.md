@@ -13,13 +13,7 @@ npm install
 ./start.sh
 ```
 
-`start.sh` launches MongoDB, the Dockerized MCP runner, and the optional viewer at http://localhost:3001. When you want Claude/Cursor to talk to the server over stdio, run:
-
-```bash
-./scripts/run-mcp-docker.sh
-```
-
-`run-mcp-docker.sh` reuses the long-lived container built by Docker (which already runs `npm run build` inside the image) and executes `dist/index.js` inside it. If you change TypeScript source, rebuild the image with `docker compose build mcp-server` so the container picks up the new `dist/`.
+`start.sh` launches MongoDB, the Dockerized MCP server (running on port 3002), and the optional viewer at http://localhost:3001. The MCP server uses SSE transport by default.
 
 ### Run schema migrations
 If you are upgrading from the legacy patient-centric schema, run:
@@ -33,22 +27,28 @@ The migrator renames the `patients` collection to `dependents`, moves PHI into t
 ### Health Summary Regeneration
 - CRUD tool responses now include `_meta.health_summary_sampling` metadata with the context needed to regenerate a patient’s active summary. When an MCP client supports `sampling/createMessage`, the server automatically packages a prompt with the updated records, the prior summary, and the shared outline, then writes the returned text via `update_health_summary`.
 - Clients that do not advertise the sampling capability keep working as before—they simply receive the metadata (plus the existing `_meta.suggested_actions` hint) and can choose to handle summary refreshes on their own.
-- Session output is mirrored to `mcp.log` whenever you launch the server with `./scripts/run-mcp-docker.sh`, which makes it easier to audit sampling runs during debugging.
+- Session output is mirrored to `mcp.log` for easier auditing of sampling runs during debugging.
 
 ## MCP Configuration
-With the MCP server running via `./scripts/run-mcp-docker.sh`, point Claude Desktop or Cursor at the script:
+With the MCP server running (see Install with Docker above), configure Claude Desktop or Cursor to connect via SSE:
 
 ```json
 {
   "mcpServers": {
     "health-record-mcp": {
-      "command": "/absolute/path/to/ac130/scripts/run-mcp-docker.sh"
+      "url": "http://localhost:3002",
+      "transport": {
+        "type": "sse",
+        "url": "http://localhost:3002"
+      }
     }
   }
 }
 ```
 
-Prefer running the server directly on the host instead of inside Docker? Replace the command above with your Node binary plus `npm run dev`.
+This uses the native SSE transport, eliminating the need for shell scripts or intermediate proxies. Cursor still needs the top-level `url` field today, so we duplicate it (same as the `transport.url`). The server runs on port 3002 by default.
+
+Prefer running the server directly on the host instead of inside Docker? Set `MCP_TRANSPORT=http` and run `npm run dev`.
 
 ## Data Schema & MCP Details
 ### Collections

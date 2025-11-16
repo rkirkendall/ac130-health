@@ -27,11 +27,13 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+    ports:
+      - "3002:3002"
     environment:
       - MONGO_URI=mongodb://mongodb:27017
       - HEALTH_RECORD_DB_NAME=health_record
-    # Keep container running for docker exec
-    command: tail -f /dev/null
+      - MCP_TRANSPORT=http
+      - MCP_PORT=3002
     profiles:
       - mcp
 

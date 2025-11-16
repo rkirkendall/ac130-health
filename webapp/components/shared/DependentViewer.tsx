@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import {
   Select,
@@ -11,7 +13,10 @@ import {
   SelectValue,
 } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
-import { Lock } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Lock, Settings, Plus, Edit, Trash2 } from 'lucide-react';
+import { ResourceForm } from './ResourceForm';
+import { DeleteConfirmation } from './DeleteConfirmation';
 import type { Dependent, RecordCount, PhiVaultEntry } from './types';
 import {
   formatDateValue,
@@ -207,6 +212,26 @@ const getRecordTitle = (
   if (recordType === 'procedures') {
     return record.procedure_name || record.title || `Procedure ${index + 1}`;
   }
+  if (recordType === 'conditions') {
+    return (
+      record.condition_name ||
+      record.name ||
+      record.title ||
+      `Condition ${index + 1}`
+    );
+  }
+  if (recordType === 'allergies') {
+    return record.allergen || record.title || `Allergy ${index + 1}`;
+  }
+  if (recordType === 'immunizations') {
+    return record.vaccine_name || record.title || `Immunization ${index + 1}`;
+  }
+  if (recordType === 'imaging') {
+    return record.study_type || record.title || `Imaging ${index + 1}`;
+  }
+  if (recordType === 'insurance') {
+    return record.provider_name || record.plan_name || record.title || `Insurance ${index + 1}`;
+  }
   if (recordType === 'visits') {
     return (
       record.reason ||
@@ -225,6 +250,7 @@ const getRecordTitle = (
 };
 
 export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
+  const router = useRouter();
   const [dependents, setDependents] = useState<Dependent[]>([]);
   const [selectedDependent, setSelectedDependent] = useState<string>('');
   const [recordCounts, setRecordCounts] = useState<RecordCount[]>([]);
@@ -235,6 +261,14 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const [phiState, setPhiState] = useState<PhiState>('hidden');
   const [phiEntry, setPhiEntry] = useState<PhiVaultEntry | null>(null);
   const [phiError, setPhiError] = useState<string | null>(null);
+
+  // CRUD state
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [selectedRecordForEdit, setSelectedRecordForEdit] = useState<any>(null);
+  const [selectedRecordForDelete, setSelectedRecordForDelete] = useState<any>(null);
+  const [crudLoading, setCrudLoading] = useState(false);
 
   const resetPhiState = useCallback(() => {
     setPhiState('hidden');
@@ -432,6 +466,134 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     );
   };
 
+  // CRUD functions
+  const handleCreateRecord = async (data: Record<string, any>) => {
+    setCrudLoading(true);
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to create record');
+      }
+
+      // Refresh records
+      const recordsResponse = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`
+      );
+      const updatedRecords = await parseJsonResponse<any[]>(recordsResponse);
+      setRecords(Array.isArray(updatedRecords) ? updatedRecords : []);
+
+      // Refresh counts
+      const countsResponse = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/counts`
+      );
+      const updatedCounts = await parseJsonResponse<RecordCount[]>(countsResponse);
+      const normalized = normalizeRecordCounts(Array.isArray(updatedCounts) ? updatedCounts : []);
+      setRecordCounts(normalized);
+    } catch (error) {
+      console.error('Error creating record:', error);
+      throw error;
+    } finally {
+      setCrudLoading(false);
+    }
+  };
+
+  const handleEditRecord = async (data: Record<string, any>) => {
+    if (!selectedRecordForEdit) return;
+
+    setCrudLoading(true);
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedRecordForEdit._id, ...data }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to update record');
+      }
+
+      // Refresh records
+      const recordsResponse = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`
+      );
+      const updatedRecords = await parseJsonResponse<any[]>(recordsResponse);
+      setRecords(Array.isArray(updatedRecords) ? updatedRecords : []);
+    } catch (error) {
+      console.error('Error updating record:', error);
+      throw error;
+    } finally {
+      setCrudLoading(false);
+    }
+  };
+
+  const handleDeleteRecord = async () => {
+    if (!selectedRecordForDelete) return;
+
+    setCrudLoading(true);
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}?id=${selectedRecordForDelete._id}`,
+        { method: 'DELETE' }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete record');
+      }
+
+      // Refresh records
+      const recordsResponse = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`
+      );
+      const updatedRecords = await parseJsonResponse<any[]>(recordsResponse);
+      setRecords(Array.isArray(updatedRecords) ? updatedRecords : []);
+
+      // Refresh counts
+      const countsResponse = await fetch(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/counts`
+      );
+      const updatedCounts = await parseJsonResponse<RecordCount[]>(countsResponse);
+      const normalized = normalizeRecordCounts(Array.isArray(updatedCounts) ? updatedCounts : []);
+      setRecordCounts(normalized);
+    } catch (error) {
+      console.error('Error deleting record:', error);
+      throw error;
+    } finally {
+      setCrudLoading(false);
+    }
+  };
+
+  const openCreateForm = () => setShowCreateForm(true);
+  const closeCreateForm = () => setShowCreateForm(false);
+
+  const openEditForm = (record: any) => {
+    setSelectedRecordForEdit(record);
+    setShowEditForm(true);
+  };
+  const closeEditForm = () => {
+    setShowEditForm(false);
+    setSelectedRecordForEdit(null);
+  };
+
+  const openDeleteConfirmation = (record: any) => {
+    setSelectedRecordForDelete(record);
+    setShowDeleteConfirmation(true);
+  };
+  const closeDeleteConfirmation = () => {
+    setShowDeleteConfirmation(false);
+    setSelectedRecordForDelete(null);
+  };
+
 const renderProfile = () => {
     if (!selectedDependentDetails) {
       return (
@@ -522,19 +684,25 @@ const renderProfile = () => {
   return (
     <div className="flex flex-col h-screen">
       <div className="border-b bg-card">
-        <div className="flex items-center gap-3 px-4 py-4">
-          <Image
-            src="/ac-130-logo.png"
-            alt="AC130 Health"
-            width={40}
-            height={40}
-            className="rounded-md border border-border bg-background"
-            priority
-          />
-          <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">AC130 Health</p>
-            <span className="font-semibold text-foreground">Health Records</span>
+        <div className="flex items-center justify-between px-4 py-4">
+          <div className="flex items-center gap-3">
+            <Image
+              src="/ac-130-logo.png"
+              alt="AC130 Health"
+              width={40}
+              height={40}
+              className="rounded-md border border-border bg-background"
+              priority
+            />
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">AC130 Health</p>
+              <span className="font-semibold text-foreground">Health Records</span>
+            </div>
           </div>
+          <Button variant="ghost" size="sm" onClick={() => router.push('/settings')}>
+            <Settings className="h-4 w-4 mr-2" />
+            Settings
+          </Button>
         </div>
       </div>
       <header className="border-b bg-background">
@@ -599,16 +767,47 @@ const renderProfile = () => {
         <main className="flex-1 overflow-hidden">
           <ScrollArea className="h-full">
             <div className="p-6">
-              <h2 className="text-2xl font-bold mb-6">
-                {recordCounts.find(r => r.type === selectedRecordType)?.label || 'Summary'}
-              </h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold">
+                  {recordCounts.find(r => r.type === selectedRecordType)?.label || 'Summary'}
+                </h2>
+                {selectedRecordType && selectedRecordType !== 'active_summaries' && (
+                  <Button onClick={openCreateForm} size="sm">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Record
+                  </Button>
+                )}
+              </div>
 
               {selectedRecordType === 'active_summaries' ? (
                 renderProfile()
               ) : records.length === 0 ? (
                 <Card>
-                  <CardContent className="p-6">
-                    <p className="text-muted-foreground">No records found.</p>
+                  <CardContent className="p-6 space-y-4">
+                    <div className="text-center space-y-2">
+                      <p className="text-muted-foreground">
+                        No records yet. Connect the AC130 MCP to an LLM assistant to add records.
+                      </p>
+                    </div>
+                    <div className="rounded-lg border border-dashed border-slate-300 p-4 bg-muted/50">
+                      <p className="text-sm font-medium mb-2">MCP Configuration:</p>
+                      <pre className="text-xs font-mono bg-background p-3 rounded border overflow-x-auto">
+{`{
+  "mcpServers": {
+    "health-record-mcp": {
+      "url": "http://localhost:3002",
+      "transport": {
+        "type": "sse",
+        "url": "http://localhost:3002"
+      }
+    }
+  }
+}`}
+                      </pre>
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Paste this into Cursor or Claude Desktop after starting your MCP server.
+                      </p>
+                    </div>
                   </CardContent>
                 </Card>
               ) : isLabRecordType(selectedRecordType) ? (
@@ -616,12 +815,35 @@ const renderProfile = () => {
                   {records.map((record, index) => (
                     <Card key={record._id || index}>
                       <CardHeader>
-                        <CardTitle className="text-lg">{record.test_name}</CardTitle>
-                        <div className="flex gap-4 text-sm text-muted-foreground">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <CardTitle className="text-lg">{record.test_name}</CardTitle>
+                            <div className="flex gap-4 text-sm text-muted-foreground mt-1">
                           {record.result_date && (
                             <span>Date: {formatDateValue(record.result_date) ?? record.result_date}</span>
                           )}
                           {record.status && <span>Status: {record.status}</span>}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openEditForm(record)}
+                              disabled={crudLoading}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openDeleteConfirmation(record)}
+                              disabled={crudLoading}
+                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
                       </CardHeader>
                       <CardContent>
@@ -706,10 +928,33 @@ const renderProfile = () => {
                     return (
                       <Card key={record._id || index}>
                         <CardHeader>
-                          <CardTitle className="text-lg">{titleCandidate}</CardTitle>
-                          <p className="text-sm text-muted-foreground">
-                            Updated {formatDateValue(record.updated_at) ?? 'N/A'}
-                          </p>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg">{titleCandidate}</CardTitle>
+                              <p className="text-sm text-muted-foreground">
+                                Updated {formatDateValue(record.updated_at) ?? 'N/A'}
+                              </p>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openEditForm(record)}
+                                disabled={crudLoading}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => openDeleteConfirmation(record)}
+                                disabled={crudLoading}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
                         </CardHeader>
                         <CardContent className="space-y-3">
                           {Object.entries(record)
@@ -742,6 +987,35 @@ const renderProfile = () => {
           </ScrollArea>
         </main>
       </div>
+
+      {/* CRUD Dialogs */}
+      <ResourceForm
+        isOpen={showCreateForm}
+        onClose={closeCreateForm}
+        onSubmit={handleCreateRecord}
+        resourceType={selectedRecordType}
+        mode="create"
+        dependentId={selectedDependent}
+      />
+
+      <ResourceForm
+        isOpen={showEditForm}
+        onClose={closeEditForm}
+        onSubmit={handleEditRecord}
+        resourceType={selectedRecordType}
+        mode="edit"
+        initialData={selectedRecordForEdit}
+        dependentId={selectedDependent}
+      />
+
+      <DeleteConfirmation
+        isOpen={showDeleteConfirmation}
+        onClose={closeDeleteConfirmation}
+        onConfirm={handleDeleteRecord}
+        title="Delete Record"
+        description={`Are you sure you want to delete this ${selectedRecordType.replace('_', ' ')} record? This action cannot be undone.`}
+        loading={crudLoading}
+      />
     </div>
   );
 }

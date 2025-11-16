@@ -39,3 +39,113 @@ export async function GET(
   }
 }
 
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ dependentId: string; recordType: string }> }
+) {
+  try {
+    const { dependentId, recordType } = await params;
+    const body = await request.json();
+
+    const client = await clientPromise;
+    const db = client.db('health_record');
+
+    const dependentObjectId = new ObjectId(dependentId);
+
+    // Handle both single record and array of records
+    const recordsToInsert = Array.isArray(body) ? body : [body];
+
+    const recordsWithIds = recordsToInsert.map(record => ({
+      ...record,
+      dependent_id: dependentObjectId,
+      created_at: new Date(),
+      updated_at: new Date(),
+    }));
+
+    const result = await db.collection(recordType).insertMany(recordsWithIds);
+
+    return NextResponse.json({
+      insertedCount: result.insertedCount,
+      insertedIds: Object.values(result.insertedIds).map(id => id.toString())
+    });
+  } catch (error) {
+    console.error('Error creating records:', error);
+    return NextResponse.json({ error: 'Failed to create records' }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ dependentId: string; recordType: string }> }
+) {
+  try {
+    const { dependentId, recordType } = await params;
+    const body = await request.json();
+    const { id, ...updateData } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Record ID is required' }, { status: 400 });
+    }
+
+    const client = await clientPromise;
+    const db = client.db('health_record');
+
+    const recordObjectId = new ObjectId(id);
+    const dependentObjectId = new ObjectId(dependentId);
+
+    const result = await db.collection(recordType).updateOne(
+      { _id: recordObjectId, dependent_id: dependentObjectId },
+      {
+        $set: {
+          ...updateData,
+          updated_at: new Date()
+        }
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return NextResponse.json({ error: 'Record not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ modifiedCount: result.modifiedCount });
+  } catch (error) {
+    console.error('Error updating record:', error);
+    return NextResponse.json({ error: 'Failed to update record' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ dependentId: string; recordType: string }> }
+) {
+  try {
+    const { dependentId, recordType } = await params;
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+
+    if (!id) {
+      return NextResponse.json({ error: 'Record ID is required' }, { status: 400 });
+    }
+
+    const client = await clientPromise;
+    const db = client.db('health_record');
+
+    const recordObjectId = new ObjectId(id);
+    const dependentObjectId = new ObjectId(dependentId);
+
+    const result = await db.collection(recordType).deleteOne({
+      _id: recordObjectId,
+      dependent_id: dependentObjectId
+    });
+
+    if (result.deletedCount === 0) {
+      return NextResponse.json({ error: 'Record not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ deletedCount: result.deletedCount });
+  } catch (error) {
+    console.error('Error deleting record:', error);
+    return NextResponse.json({ error: 'Failed to delete record' }, { status: 500 });
+  }
+}
+
