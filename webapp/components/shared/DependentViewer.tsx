@@ -50,6 +50,7 @@ const RECORD_TYPE_ORDER = [
   'visits',
   'prescriptions',
   'labs',
+  'lab',
   'conditions',
   'allergies',
   'immunizations',
@@ -69,6 +70,7 @@ const RECORD_TYPE_LABELS: Record<string, string> = {
   visit: 'Visits',
   prescription: 'Prescriptions',
   lab: 'Labs',
+  labs: 'Labs',
   treatment: 'Treatments',
   condition: 'Conditions',
   allergy: 'Allergies',
@@ -145,6 +147,8 @@ const normalizeRecordCounts = (counts: RecordCount[]): RecordCount[] => {
     })),
   ];
 };
+
+const isLabRecordType = (type?: string) => type === 'lab' || type === 'labs';
 
 async function parseJsonResponse<T>(res: Response): Promise<T | null> {
   if (!res.ok) {
@@ -595,7 +599,7 @@ const renderProfile = () => {
                     <p className="text-muted-foreground">No records found.</p>
                   </CardContent>
                 </Card>
-              ) : selectedRecordType === 'labs' ? (
+              ) : isLabRecordType(selectedRecordType) ? (
                 <div className="space-y-4">
                   {records.map((record, index) => (
                     <Card key={record._id || index}>
