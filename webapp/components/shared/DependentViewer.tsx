@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import {
   Select,
@@ -10,6 +11,7 @@ import {
   SelectValue,
 } from './ui/select';
 import { ScrollArea } from './ui/scroll-area';
+import { Lock } from 'lucide-react';
 import type { Dependent, RecordCount, PhiVaultEntry } from './types';
 import {
   formatDateValue,
@@ -43,6 +45,9 @@ const HIDDEN_FIELD_KEYS = new Set([
   'created_by',
   'updated_by',
   'database_id',
+  'created_at',
+  'updated_at',
+  'archived',
 ]);
 
 const RECORD_TYPE_ORDER = [
@@ -405,7 +410,10 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
       <div className="rounded-lg border border-dashed border-slate-300 p-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold">PHI Vault</p>
+            <p className="text-sm font-semibold flex items-center gap-2">
+              <Lock className="h-4 w-4 text-primary" aria-hidden />
+              <span>PHI Vault</span>
+            </p>
             <p className="text-xs text-muted-foreground">
               {selectedDependentDetails.has_phi
                 ? 'Sensitive identifiers are vaulted separately.'
@@ -439,22 +447,10 @@ const renderProfile = () => {
 
     const baseFields = [
       {
-        label: 'Identifier',
+        label: 'Relationship',
         value: selectedDependentDetails.record_identifier,
       },
       { label: 'External Reference', value: selectedDependentDetails.external_ref },
-      {
-        label: 'Archived',
-        value: selectedDependentDetails.archived ? 'Yes' : 'No',
-      },
-      {
-        label: 'Created',
-        value: formatDateValue(selectedDependentDetails.created_at),
-      },
-      {
-        label: 'Updated',
-        value: formatDateValue(selectedDependentDetails.updated_at),
-      },
     ].filter(field => hasRenderableValue(field.value));
 
     const latestSummary = records[0];
@@ -525,6 +521,22 @@ const renderProfile = () => {
 
   return (
     <div className="flex flex-col h-screen">
+      <div className="border-b bg-card">
+        <div className="flex items-center gap-3 px-4 py-4">
+          <Image
+            src="/ac-130-logo.png"
+            alt="AC130 Health"
+            width={40}
+            height={40}
+            className="rounded-md border border-border bg-background"
+            priority
+          />
+          <div>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">AC130 Health</p>
+            <span className="font-semibold text-foreground">Health Records</span>
+          </div>
+        </div>
+      </div>
       <header className="border-b bg-background">
         <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
