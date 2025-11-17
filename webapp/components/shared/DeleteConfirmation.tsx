@@ -14,10 +14,11 @@ import {
 interface DeleteConfirmationProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: () => Promise<void>;
+  onConfirm: () => Promise<boolean | void>;
   title: string;
   description: string;
   loading?: boolean;
+  errorMessage?: string | null;
 }
 
 export function DeleteConfirmation({
@@ -27,10 +28,17 @@ export function DeleteConfirmation({
   title,
   description,
   loading = false,
+  errorMessage = null,
 }: DeleteConfirmationProps) {
   const handleConfirm = async () => {
-    await onConfirm();
-    onClose();
+    try {
+      const shouldClose = await onConfirm();
+      if (shouldClose !== false) {
+        onClose();
+      }
+    } catch (error) {
+      console.error('Delete confirmation failed:', error);
+    }
   };
 
   return (
@@ -40,6 +48,9 @@ export function DeleteConfirmation({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
+        {errorMessage ? (
+          <p className="text-sm text-red-600">{errorMessage}</p>
+        ) : null}
         <AlertDialogFooter>
           <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
           <AlertDialogAction

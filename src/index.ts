@@ -231,6 +231,16 @@ const resourceTypeDescriptions = resourceTypes.map(type => {
   const def = RESOURCE_REGISTRY[type];
   return `- ${type}: ${def.description}`;
 }).join('\n');
+const deletableResourceTypes = resourceTypes.filter(type => type !== 'dependent');
+const deletableResourceTypeDescriptions =
+  deletableResourceTypes.length > 0
+    ? deletableResourceTypes
+        .map(type => {
+          const def = RESOURCE_REGISTRY[type];
+          return `- ${type}: ${def.description}`;
+        })
+        .join('\n')
+    : 'No non-dependent resource types are currently available for deletion.';
 
 // List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -342,13 +352,13 @@ EXAMPLE - Batch Create Labs:
       },
       {
         name: 'delete_resource',
-        description: `Delete a resource record by ID. Available resource types:\n${resourceTypeDescriptions}`,
+        description: `Delete a resource record by ID.\n\nPatient/dependent deletion is disabled via MCP. Use the AC130 dashboard to remove an entire profile so all related records are cleaned up automatically.\n\nAvailable resource types:\n${deletableResourceTypeDescriptions}`,
         inputSchema: {
           type: 'object',
           properties: {
             resource_type: {
               type: 'string',
-              enum: resourceTypes,
+              enum: deletableResourceTypes,
               description: 'The type of resource to delete',
             },
             id: {

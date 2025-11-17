@@ -1203,6 +1203,12 @@ export async function deleteResource(adapter: PersistenceAdapter, args: unknown)
     throw new Error(`Unknown resource type: ${resource_type}`);
   }
 
+  if (resource_type === 'dependent') {
+    throw new Error(
+      'Patient deletion is disabled via MCP. Use the AC130 dashboard to delete a profile so all related records are cleaned up safely.'
+    );
+  }
+
   const persistence = adapter.forCollection(resourceDef.collectionName);
 
   if (!persistence.validateId(id)) {

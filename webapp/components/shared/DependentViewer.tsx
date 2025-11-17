@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -30,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { Lock, Settings, Plus, Edit, Trash2 } from 'lucide-react';
+import { Lock, Settings, Plus, Edit, Trash2, MoreHorizontal } from 'lucide-react';
 import { ResourceForm } from './ResourceForm';
 import { DeleteConfirmation } from './DeleteConfirmation';
 import type { Dependent, RecordCount, PhiVaultEntry } from './types';
@@ -327,6 +328,11 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const [selectedRecordForEdit, setSelectedRecordForEdit] = useState<any>(null);
   const [selectedRecordForDelete, setSelectedRecordForDelete] = useState<any>(null);
   const [crudLoading, setCrudLoading] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const [showDependentDeleteDialog, setShowDependentDeleteDialog] = useState(false);
+  const [dependentDeleteLoading, setDependentDeleteLoading] = useState(false);
+  const [dependentDeleteError, setDependentDeleteError] = useState<string | null>(null);
   const resetProfileForm = useCallback(() => {
     setProfileForm(createEmptyProfileForm());
     setProfileError(null);
@@ -410,7 +416,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
         }
       }
 
-      if (!response.ok) {
+      if (!response.ok && response.status !== 404) {
         const message =
           parsed &&
           typeof parsed === 'object' &&
@@ -473,6 +479,21 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     setSelectedRecordType('');
     resetPhiState();
   }, [resetPhiState]);
+
+  useEffect(() => {
+    if (!profileMenuOpen) {
+      return;
+    }
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [profileMenuOpen]);
 
   useEffect(() => {
     fetch(`${apiBaseUrl}/api/dependents`)
@@ -968,6 +989,81 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     setSelectedRecordForDelete(null);
   };
 
+  const handleDeleteProfileMenuClick = () => {
+    setProfileMenuOpen(false);
+    setDependentDeleteError(null);
+    setShowDependentDeleteDialog(true);
+  };
+
+  const closeDependentDeleteDialog = () => {
+    if (dependentDeleteLoading) {
+      return;
+    }
+    setShowDependentDeleteDialog(false);
+    setDependentDeleteError(null);
+  };
+
+  const handleDeleteDependent = async (): Promise<boolean> => {
+    if (!selectedDependent) {
+      setDependentDeleteError('Select a profile to delete.');
+      return false;
+    }
+
+    setDependentDeleteLoading(true);
+    setDependentDeleteError(null);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}`, {
+        method: 'DELETE',
+      });
+
+      const responseText = await response.text();
+      let parsed: any = null;
+      if (responseText) {
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
+          parsed = null;
+        }
+      }
+
+      if (!response.ok) {
+        const message =
+          parsed &&
+          typeof parsed === 'object' &&
+          typeof parsed.error === 'string'
+            ? parsed.error
+            : 'Failed to delete profile.';
+        setDependentDeleteError(message);
+        return false;
+      }
+
+      let nextSelectedId = '';
+      setDependents(prev => {
+        const updated = prev.filter(dependent => dependent._id !== selectedDependent);
+        nextSelectedId = updated[0]?._id ?? '';
+        return updated;
+      });
+
+      setRecords([]);
+      setRecordCounts([]);
+      setSelectedRecordForEdit(null);
+      setSelectedRecordForDelete(null);
+      setProfileMenuOpen(false);
+      handleSelectDependent(nextSelectedId);
+      setShowDependentDeleteDialog(false);
+      return true;
+    } catch (error) {
+      console.error('Error deleting dependent:', error);
+      setDependentDeleteError(
+        error instanceof Error ? error.message : 'Failed to delete profile.'
+      );
+      return false;
+    } finally {
+      setDependentDeleteLoading(false);
+    }
+  };
+
 const renderProfile = () => {
     if (!selectedDependentDetails) {
       return (
@@ -1095,23 +1191,47 @@ const renderProfile = () => {
       </div>
       <header className="border-b bg-background">
         <div className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Profile
-            </p>
-            <div className="w-full min-w-0 sm:w-64">
-              <Select value={selectedDependent} onValueChange={handleSelectDependent}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select profile" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dependents.map(dependent => (
-                    <SelectItem key={dependent._id} value={dependent._id}>
-                      {dependent.record_identifier}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+          <div className="flex items-center gap-2 sm:flex-1">
+            <div className="space-y-1 flex-1 min-w-0">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Profile
+              </p>
+              <div className="w-full min-w-0 sm:w-64">
+                <Select value={selectedDependent} onValueChange={handleSelectDependent}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select profile" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {dependents.map(dependent => (
+                      <SelectItem key={dependent._id} value={dependent._id}>
+                        {dependent.record_identifier}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="relative" ref={profileMenuRef}>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Profile actions"
+                disabled={!selectedDependent}
+                onClick={() => setProfileMenuOpen(open => !open)}
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+              {profileMenuOpen ? (
+                <div className="absolute right-0 z-50 mt-2 w-44 rounded-md border bg-background text-sm shadow-lg">
+                  <button
+                    className="w-full px-3 py-2 text-left text-red-600 hover:bg-muted"
+                    onClick={handleDeleteProfileMenuClick}
+                    disabled={!selectedDependent}
+                  >
+                    Delete profile
+                  </button>
+                </div>
+              ) : null}
             </div>
           </div>
           <Button onClick={openProfileModal} size="sm">
@@ -1408,6 +1528,15 @@ const renderProfile = () => {
         title="Delete Record"
         description={`Are you sure you want to delete this ${selectedRecordType.replace('_', ' ')} record? This action cannot be undone.`}
         loading={crudLoading}
+      />
+      <DeleteConfirmation
+        isOpen={showDependentDeleteDialog}
+        onClose={closeDependentDeleteDialog}
+        onConfirm={handleDeleteDependent}
+        title="Delete Profile"
+        description="This will permanently delete the profile and every associated record. This action cannot be undone."
+        loading={dependentDeleteLoading}
+        errorMessage={dependentDeleteError}
       />
 
   <Dialog
