@@ -326,6 +326,26 @@ function normalizeCreateResourceArgs(args: unknown): unknown {
   return normalized;
 }
 
+function ensureArchiveFlag(record: Record<string, unknown>): Record<string, unknown> {
+  if (!record || typeof record !== 'object') {
+    return record;
+  }
+  if (Object.prototype.hasOwnProperty.call(record, 'archived')) {
+    return record;
+  }
+  return {
+    ...record,
+    archived: false,
+  };
+}
+
+function isArchivedRecord(record: unknown): boolean {
+  if (!record || typeof record !== 'object') {
+    return false;
+  }
+  return (record as Record<string, unknown>).archived === true;
+}
+
 const GetResourceSchema = z.object({
   resource_type: z.string(),
   id: z.string(),
@@ -959,13 +979,16 @@ export async function createResource(
       throw new Error(`Resource type ${resource_type} does not support batch creation`);
     }
 
-    const records = validatedData.map((item: any) => ({
-      ...item,
-      created_at: now,
-      updated_at: now,
-      created_by: 'mcp',
-      updated_by: 'mcp',
-    }));
+    const records = validatedData.map((item: any) => {
+      const normalized = ensureArchiveFlag(item as Record<string, unknown>);
+      return {
+        ...normalized,
+        created_at: now,
+        updated_at: now,
+        created_by: 'mcp',
+        updated_by: 'mcp',
+      };
+    });
 
     const insertedRecords = await persistence.createMany(records);
     const formatted = insertedRecords.map((record) =>
@@ -1013,8 +1036,13 @@ export async function createResource(
   }
 
   // Handle single creation
+  const normalizedData =
+    validatedData && typeof validatedData === 'object'
+      ? ensureArchiveFlag(validatedData as Record<string, unknown>)
+      : (validatedData as Record<string, unknown>);
+
   const record = {
-    ...validatedData,
+    ...normalizedData,
     created_at: now,
     updated_at: now,
     created_by: 'mcp',
@@ -1084,6 +1112,9 @@ export async function getResource(adapter: PersistenceAdapter, args: unknown) {
   }
 
   const formatted = persistence.toExternal(record, resourceDef.idField);
+  if (isArchivedRecord(formatted)) {
+    throw new Error(`${resourceDef.name} not found`);
+  }
 
   return {
     content: [
@@ -1229,6 +1260,7 @@ export async function deleteResource(adapter: PersistenceAdapter, args: unknown)
         type: 'text',
         text: JSON.stringify({
           success: true,
+          status: 'deleted',
           [resourceDef.idField]: id,
           deleted: {
             ...formatted,
@@ -1286,14 +1318,18 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
   const formattedRecords = records.map((record) =>
     persistence.toExternal(record, resourceDef.idField)
   );
+  const hasArchivedFilter = Object.prototype.hasOwnProperty.call(query, 'archived');
+  const visibleRecords = hasArchivedFilter
+    ? formattedRecords
+    : formattedRecords.filter((record) => !isArchivedRecord(record));
 
   return {
     content: [
       {
         type: 'text',
         text: JSON.stringify({
-          count: records.length,
-          [resourceDef.collectionName]: formattedRecords,
+          count: visibleRecords.length,
+          [resourceDef.collectionName]: visibleRecords,
         }, null, 2),
       },
     ],

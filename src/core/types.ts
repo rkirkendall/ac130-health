@@ -46,6 +46,7 @@ export interface ActiveSummary {
   summary_text: string;
   updated_at: Date;
   version?: number;
+  archived?: boolean;
 }
 
 export interface Provider {
@@ -58,6 +59,7 @@ export interface Provider {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Visit {
@@ -72,6 +74,7 @@ export interface Visit {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Prescription {
@@ -88,6 +91,7 @@ export interface Prescription {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Lab {
@@ -116,6 +120,7 @@ export interface Lab {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Condition {
@@ -132,6 +137,7 @@ export interface Condition {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Treatment {
@@ -146,6 +152,7 @@ export interface Treatment {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Allergy {
@@ -162,6 +169,7 @@ export interface Allergy {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Immunization {
@@ -179,6 +187,7 @@ export interface Immunization {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface VitalSigns {
@@ -221,6 +230,7 @@ export interface VitalSigns {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Procedure {
@@ -239,6 +249,7 @@ export interface Procedure {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Imaging {
@@ -258,6 +269,7 @@ export interface Imaging {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 export interface Insurance {
@@ -278,6 +290,7 @@ export interface Insurance {
   updated_at: Date;
   created_by?: string;
   updated_by?: string;
+  archived?: boolean;
 }
 
 // Zod Schemas for Input Validation
@@ -344,6 +357,7 @@ export const CreateProviderSchema = strictObject({
     phone: z.string().optional(),
     email: z.string().optional(),
   }).optional(),
+  archived: z.boolean().optional(),
 });
 
 export const UpdateProviderSchema = strictObject({
@@ -355,6 +369,7 @@ export const UpdateProviderSchema = strictObject({
     phone: z.string().optional(),
     email: z.string().optional(),
   }).optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetProviderSchema = strictObject({
@@ -368,6 +383,7 @@ const VisitDataSchema = strictObject({
   type: z.enum(['office', 'er', 'telehealth', 'inpatient', 'other']).optional(),
   reason: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateVisitSchema = z.union([
@@ -382,6 +398,7 @@ export const UpdateVisitSchema = strictObject({
   type: z.enum(['office', 'er', 'telehealth', 'inpatient', 'other']).optional(),
   reason: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetVisitSchema = strictObject({
@@ -392,6 +409,7 @@ export const ListVisitsSchema = strictObject({
   dependent_id: z.string().optional(),
   provider_id: z.string().optional(),
   type: z.enum(['office', 'er', 'telehealth', 'inpatient', 'other']).optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -404,6 +422,7 @@ const PrescriptionDataSchema = strictObject({
   stop_date: z.string().optional(),
   status: z.enum(['active', 'stopped', 'completed']).optional(),
   prescriber_id: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreatePrescriptionSchema = z.union([
@@ -420,6 +439,7 @@ export const UpdatePrescriptionSchema = strictObject({
   stop_date: z.string().optional(),
   status: z.enum(['active', 'stopped', 'completed']).optional(),
   prescriber_id: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetPrescriptionSchema = strictObject({
@@ -431,6 +451,7 @@ export const ListPrescriptionsSchema = strictObject({
   prescriber_id: z.string().optional(),
   status: z.enum(['active', 'stopped', 'completed']).optional(),
   medication_name: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -455,6 +476,7 @@ const LabDataSchema = strictObject({
   result_date: z.string().optional(),
   ordered_by: z.string().optional(),
   status: z.enum(['pending', 'final', 'corrected']).optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateLabSchema = z.union([
@@ -483,6 +505,7 @@ export const UpdateLabSchema = strictObject({
   result_date: z.string().optional(),
   ordered_by: z.string().optional(),
   status: z.enum(['pending', 'final', 'corrected']).optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetLabSchema = strictObject({
@@ -494,6 +517,7 @@ export const ListLabsSchema = strictObject({
   test_name: z.string().optional(),
   status: z.enum(['pending', 'final', 'corrected']).optional(),
   ordered_by: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -507,6 +531,7 @@ export const CreateTreatmentSchema = strictObject({
     description: z.string(),
     status: z.string().optional(),
   })).optional(),
+  archived: z.boolean().optional(),
 });
 
 export const UpdateTreatmentSchema = strictObject({
@@ -519,6 +544,7 @@ export const UpdateTreatmentSchema = strictObject({
     description: z.string(),
     status: z.string().optional(),
   })).optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetTreatmentSchema = strictObject({
@@ -529,6 +555,7 @@ export const ListTreatmentsSchema = strictObject({
   dependent_id: z.string().optional(),
   provider_id: z.string().optional(),
   title: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -541,6 +568,7 @@ const ConditionDataSchema = strictObject({
   severity: z.enum(['mild', 'moderate', 'severe']).optional(),
   notes: z.string().optional(),
   diagnosed_by: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateConditionSchema = z.union([
@@ -557,6 +585,7 @@ export const UpdateConditionSchema = strictObject({
   severity: z.enum(['mild', 'moderate', 'severe']).optional(),
   notes: z.string().optional(),
   diagnosed_by: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetConditionSchema = strictObject({
@@ -568,6 +597,7 @@ export const ListConditionsSchema = strictObject({
   diagnosed_by: z.string().optional(),
   status: z.enum(['active', 'resolved', 'chronic']).optional(),
   severity: z.enum(['mild', 'moderate', 'severe']).optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -581,6 +611,7 @@ const AllergyDataSchema = strictObject({
   onset_date: z.string().optional(),
   notes: z.string().optional(),
   verified_by: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateAllergySchema = z.union([
@@ -597,6 +628,7 @@ export const UpdateAllergySchema = strictObject({
   onset_date: z.string().optional(),
   notes: z.string().optional(),
   verified_by: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetAllergySchema = strictObject({
@@ -607,6 +639,7 @@ export const ListAllergiesSchema = strictObject({
   dependent_id: z.string().optional(),
   type: z.enum(['drug', 'food', 'environmental', 'other']).optional(),
   severity: z.enum(['mild', 'moderate', 'severe', 'life-threatening']).optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -621,6 +654,7 @@ const ImmunizationDataSchema = strictObject({
   site: z.string().optional(),
   route: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateImmunizationSchema = z.union([
@@ -638,6 +672,7 @@ export const UpdateImmunizationSchema = strictObject({
   site: z.string().optional(),
   route: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetImmunizationSchema = strictObject({
@@ -648,6 +683,7 @@ export const ListImmunizationsSchema = strictObject({
   dependent_id: z.string().optional(),
   vaccine_name: z.string().optional(),
   administered_by: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -687,6 +723,7 @@ const VitalSignsDataSchema = strictObject({
   }).optional(),
   bmi: z.number().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateVitalSignsSchema = z.union([
@@ -729,6 +766,7 @@ export const UpdateVitalSignsSchema = strictObject({
   }).optional(),
   bmi: z.number().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetVitalSignsSchema = strictObject({
@@ -738,6 +776,7 @@ export const GetVitalSignsSchema = strictObject({
 export const ListVitalSignsSchema = strictObject({
   dependent_id: z.string().optional(),
   recorded_by: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -753,6 +792,7 @@ const ProcedureDataSchema = strictObject({
   outcome: z.string().optional(),
   complications: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateProcedureSchema = z.union([
@@ -771,6 +811,7 @@ export const UpdateProcedureSchema = strictObject({
   outcome: z.string().optional(),
   complications: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetProcedureSchema = strictObject({
@@ -781,6 +822,7 @@ export const ListProceduresSchema = strictObject({
   dependent_id: z.string().optional(),
   procedure_type: z.enum(['surgery', 'diagnostic', 'therapeutic', 'other']).optional(),
   performed_by: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -797,6 +839,7 @@ const ImagingDataSchema = strictObject({
   impression: z.string().optional(),
   report_url: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateImagingSchema = z.union([
@@ -816,6 +859,7 @@ export const UpdateImagingSchema = strictObject({
   impression: z.string().optional(),
   report_url: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetImagingSchema = strictObject({
@@ -826,6 +870,7 @@ export const ListImagingSchema = strictObject({
   dependent_id: z.string().optional(),
   modality: z.enum(['X-Ray', 'CT', 'MRI', 'Ultrasound', 'PET', 'Nuclear', 'Other']).optional(),
   ordered_by: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 
@@ -843,6 +888,7 @@ const InsuranceDataSchema = strictObject({
   termination_date: z.string().optional(),
   phone: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const CreateInsuranceSchema = z.union([
@@ -863,6 +909,7 @@ export const UpdateInsuranceSchema = strictObject({
   termination_date: z.string().optional(),
   phone: z.string().optional(),
   notes: z.string().optional(),
+  archived: z.boolean().optional(),
 });
 
 export const GetInsuranceSchema = strictObject({
@@ -873,6 +920,7 @@ export const ListInsuranceSchema = strictObject({
   dependent_id: z.string().optional(),
   coverage_type: z.enum(['primary', 'secondary', 'tertiary']).optional(),
   provider_name: z.string().optional(),
+  archived: z.boolean().optional(),
   limit: z.number().optional(),
 });
 

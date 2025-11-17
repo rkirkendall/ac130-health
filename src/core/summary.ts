@@ -15,9 +15,11 @@ export async function updateHealthSummary(adapter: PersistenceAdapter, args: unk
       set: {
         summary_text: validated.summary_text,
         updated_at: new Date(),
+        archived: false,
       },
       setOnInsert: {
         dependent_id: validated.dependent_id,
+        archived: false,
       },
     },
     {
@@ -51,7 +53,7 @@ export async function getHealthSummary(adapter: PersistenceAdapter, dependentId:
     dependent_id: dependentId,
   });
   
-  if (!summary) {
+  if (!summary || summary.archived === true) {
     return 'No active health summary available yet. Use update_health_summary to create one.';
   }
   
