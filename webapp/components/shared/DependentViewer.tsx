@@ -1,6 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
@@ -40,9 +47,24 @@ interface DependentViewerProps {
 
 type PhiState = 'hidden' | 'loading' | 'visible' | 'error';
 
+interface ProfileFormState {
+  recordIdentifier: string;
+  legalFirst: string;
+  legalLast: string;
+  sex: string;
+  fullDob: string;
+}
+
+const createEmptyProfileForm = (): ProfileFormState => ({
+  recordIdentifier: '',
+  legalFirst: '',
+  legalLast: '',
+  sex: '',
+  fullDob: '',
+});
+
 const PHI_FIELD_OPTIONS = [
   { value: 'legal_name', label: 'Full Legal Name' },
-  { value: 'preferred_name', label: 'Preferred Name' },
   { value: 'relationship_note', label: 'Relationship Note' },
   { value: 'full_dob', label: 'Full Date of Birth' },
   { value: 'birth_year', label: 'Birth Year' },
@@ -52,6 +74,8 @@ const PHI_FIELD_OPTIONS = [
   { value: 'address_line1', label: 'Address' },
 ] as const;
 
+type PhiFieldType = (typeof PHI_FIELD_OPTIONS)[number]['value'];
+
 const DEFAULT_PHI_FIELD = PHI_FIELD_OPTIONS[0]?.value ?? 'legal_name';
 
 const FIELD_LABEL_OVERRIDES: Record<string, string> = {
@@ -59,7 +83,6 @@ const FIELD_LABEL_OVERRIDES: Record<string, string> = {
   full_name: 'Name',
   patient_name: 'Name',
   provider_name: 'Provider Name',
-  external_ref: 'External Reference',
   created_at: 'Created',
   updated_at: 'Updated',
 };
@@ -285,10 +308,17 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const [phiEntry, setPhiEntry] = useState<PhiVaultEntry | null>(null);
   const [phiError, setPhiError] = useState<string | null>(null);
   const [showPhiModal, setShowPhiModal] = useState(false);
-  const [phiModalType, setPhiModalType] = useState(DEFAULT_PHI_FIELD);
+  const [phiModalType, setPhiModalType] = useState<PhiFieldType>(DEFAULT_PHI_FIELD);
   const [phiModalValue, setPhiModalValue] = useState('');
   const [phiModalError, setPhiModalError] = useState<string | null>(null);
   const [phiSaving, setPhiSaving] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileSubmitting, setProfileSubmitting] = useState(false);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileForm, setProfileForm] = useState<ProfileFormState>(() =>
+    createEmptyProfileForm()
+  );
+  const maxDob = useMemo(() => new Date().toISOString().split('T')[0], []);
 
   // CRUD state
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -297,6 +327,123 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const [selectedRecordForEdit, setSelectedRecordForEdit] = useState<any>(null);
   const [selectedRecordForDelete, setSelectedRecordForDelete] = useState<any>(null);
   const [crudLoading, setCrudLoading] = useState(false);
+  const resetProfileForm = useCallback(() => {
+    setProfileForm(createEmptyProfileForm());
+    setProfileError(null);
+  }, []);
+
+  const openProfileModal = () => {
+    resetProfileForm();
+    setShowProfileModal(true);
+  };
+
+  const closeProfileModal = () => {
+    setShowProfileModal(false);
+    resetProfileForm();
+  };
+
+  const handleProfileFieldChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const { name, value } = event.target;
+    setProfileForm(prev => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
+
+  const handleProfileSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const trimmedIdentifier = profileForm.recordIdentifier.trim();
+
+    if (!trimmedIdentifier) {
+      setProfileError('Relationship identifier is required.');
+      return;
+    }
+
+    setProfileSubmitting(true);
+    setProfileError(null);
+
+    const payload: Record<string, any> = {
+      record_identifier: trimmedIdentifier,
+    };
+
+    const phiPayload: Record<string, any> = {};
+    const legalFirst = profileForm.legalFirst.trim();
+    const legalLast = profileForm.legalLast.trim();
+
+    if (legalFirst || legalLast) {
+      phiPayload.legal_name = {
+        ...(legalFirst ? { given: legalFirst } : {}),
+        ...(legalLast ? { family: legalLast } : {}),
+      };
+    }
+
+    const sex = profileForm.sex.trim().toLowerCase();
+    if (sex === 'male' || sex === 'female') {
+      phiPayload.sex = sex;
+    }
+
+    if (profileForm.fullDob) {
+      phiPayload.full_dob = profileForm.fullDob;
+    }
+
+    if (Object.keys(phiPayload).length > 0) {
+      payload.phi = phiPayload;
+    }
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/dependents`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const responseText = await response.text();
+      let parsed: any = null;
+
+      if (responseText) {
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
+          parsed = null;
+        }
+      }
+
+      if (!response.ok) {
+        const message =
+          parsed &&
+          typeof parsed === 'object' &&
+          typeof parsed.error === 'string'
+            ? parsed.error
+            : 'Failed to create profile.';
+        throw new Error(message);
+      }
+
+      if (!parsed) {
+        throw new Error('Failed to create profile.');
+      }
+
+      const created = parsed as Dependent;
+
+      setDependents(prev => {
+        const remaining = prev.filter(
+          dependent => dependent._id !== created._id
+        );
+        return [created, ...remaining];
+      });
+
+      handleSelectDependent(created._id);
+      closeProfileModal();
+    } catch (error) {
+      console.error('Error creating profile:', error);
+      setProfileError(
+        error instanceof Error ? error.message : 'Failed to create profile.'
+      );
+    } finally {
+      setProfileSubmitting(false);
+    }
+  };
 
   const resetPhiState = useCallback(() => {
     setPhiState('hidden');
@@ -502,7 +649,6 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
           label: 'Legal Name',
           value: humanNameToString(phiEntry?.legal_name),
         },
-        { label: 'Preferred Name', value: phiEntry?.preferred_name },
         { label: 'Relationship Note', value: phiEntry?.relationship_note },
         {
           label: 'Full Date of Birth',
@@ -571,6 +717,128 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
       </div>
     );
   };
+
+  const renderCreateProfileDialog = () => (
+    <Dialog
+      open={showProfileModal}
+      onOpenChange={open => {
+        if (!open) {
+          closeProfileModal();
+        }
+      }}
+    >
+      <DialogContent className="sm:max-w-[600px]">
+        <DialogHeader>
+          <DialogTitle>Add Profile</DialogTitle>
+          <DialogDescription>
+            Create a relationship label that does not contain Personally Identifiable Health Information (PHI). This is how you will refer to this person's profile when you chat with the LLM. You can also add optional PHI. Sensitive fields are
+            stored in the PHI vault and never shared with the LLM.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleProfileSubmit} className="space-y-6">
+          <div className="space-y-2">
+            <Label htmlFor="record-identifier">Relationship Identifier</Label>
+            <Input
+              id="record-identifier"
+              name="recordIdentifier"
+              value={profileForm.recordIdentifier}
+              onChange={handleProfileFieldChange}
+              placeholder="e.g., Mom, Dad, Aunt"
+              required
+              disabled={profileSubmitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              This is the label the LLM will see when looking up this person's profile.
+            </p>
+          </div>
+
+          <div className="space-y-4 rounded-lg border border-dashed border-slate-300 p-4">
+            <div>
+              <p className="text-sm font-semibold">PHI Vault (optional)</p>
+              <p className="text-xs text-muted-foreground">
+                These identifiers are encrypted and only shown after an explicit reveal.
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="legal-first">Legal First Name</Label>
+                <Input
+                  id="legal-first"
+                  name="legalFirst"
+                  value={profileForm.legalFirst}
+                  onChange={handleProfileFieldChange}
+                  placeholder="First name"
+                  disabled={profileSubmitting}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="legal-last">Legal Last Name</Label>
+                <Input
+                  id="legal-last"
+                  name="legalLast"
+                  value={profileForm.legalLast}
+                  onChange={handleProfileFieldChange}
+                  placeholder="Last name"
+                  disabled={profileSubmitting}
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="phi-sex">Sex</Label>
+                <Select
+                  value={profileForm.sex || undefined}
+                  onValueChange={value =>
+                    setProfileForm(prev => ({ ...prev, sex: value }))
+                  }
+                >
+                  <SelectTrigger id="phi-sex" disabled={profileSubmitting}>
+                    <SelectValue placeholder="Select sex" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="male">Male</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="phi-dob">Date of Birth</Label>
+                <Input
+                  type="date"
+                  id="phi-dob"
+                  name="fullDob"
+                  value={profileForm.fullDob}
+                  onChange={handleProfileFieldChange}
+                  disabled={profileSubmitting}
+                  max={maxDob}
+                />
+              </div>
+            </div>
+          </div>
+
+          {profileError ? (
+            <p className="text-sm text-red-600">{profileError}</p>
+          ) : null}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeProfileModal}
+              disabled={profileSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={profileSubmitting}>
+              {profileSubmitting ? 'Creating...' : 'Create Profile'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
 
   // CRUD functions
   const handleCreateRecord = async (data: Record<string, any>) => {
@@ -718,7 +986,6 @@ const renderProfile = () => {
         label: 'Relationship',
         value: selectedDependentDetails.record_identifier,
       },
-      { label: 'External Reference', value: selectedDependentDetails.external_ref },
     ].filter(field => hasRenderableValue(field.value));
 
     const latestSummary = records[0];
@@ -773,17 +1040,32 @@ const renderProfile = () => {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">Loading…</p>
-      </div>
+      <>
+        <div className="flex min-h-screen items-center justify-center">
+          <p className="text-lg">Loading...</p>
+        </div>
+        {renderCreateProfileDialog()}
+      </>
     );
   }
 
   if (dependents.length === 0) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-lg">No profiles found in database.</p>
-      </div>
+      <>
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="max-w-md space-y-4 px-4 text-center">
+            <p className="text-lg font-semibold">No profiles found yet.</p>
+            <p className="text-sm text-muted-foreground">
+              Create your first profile to start managing health records.
+            </p>
+            <Button onClick={openProfileModal}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Profile
+            </Button>
+          </div>
+        </div>
+        {renderCreateProfileDialog()}
+      </>
     );
   }
 
@@ -832,6 +1114,10 @@ const renderProfile = () => {
               </Select>
             </div>
           </div>
+          <Button onClick={openProfileModal} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Profile
+          </Button>
         </div>
       </header>
 
@@ -1094,6 +1380,7 @@ const renderProfile = () => {
         </main>
       </div>
 
+      {renderCreateProfileDialog()}
       {/* CRUD Dialogs */}
       <ResourceForm
         isOpen={showCreateForm}
@@ -1148,7 +1435,7 @@ const renderProfile = () => {
             <div className="col-span-3">
               <Select
                 value={phiModalType}
-                onValueChange={value => setPhiModalType(value)}
+                onValueChange={(nextValue: PhiFieldType) => setPhiModalType(nextValue)}
               >
                 <SelectTrigger id="phi-field">
                   <SelectValue placeholder="Select field" />

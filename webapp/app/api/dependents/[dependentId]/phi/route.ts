@@ -52,8 +52,6 @@ const buildPhiUpdate = (field: string, value: string): Record<string, unknown> |
   switch (field) {
     case 'legal_name':
       return { legal_name: { text: value } };
-    case 'preferred_name':
-      return { preferred_name: value };
     case 'relationship_note':
       return { relationship_note: value };
     case 'full_dob':
@@ -62,8 +60,13 @@ const buildPhiUpdate = (field: string, value: string): Record<string, unknown> |
       const parsed = Number(value);
       return { birth_year: Number.isNaN(parsed) ? value : parsed };
     }
-    case 'sex':
-      return { sex: value };
+    case 'sex': {
+      const normalized = value.toLowerCase();
+      if (normalized === 'male' || normalized === 'female') {
+        return { sex: normalized };
+      }
+      return null;
+    }
     case 'contact_phone':
       return { 'contact.phone': value };
     case 'contact_email':
@@ -121,12 +124,16 @@ export async function POST(
         { upsert: true, returnDocument: 'after' }
       );
 
-    let phiEntry = result.value;
+    let phiEntry = result?.value ?? null;
     if (!phiEntry) {
       phiEntry = await phiCollection.findOne({ dependent_id: dependentKey });
       if (!phiEntry) {
         throw new Error('Failed to upsert PHI entry');
       }
+    }
+
+    if (!(dependentKey instanceof ObjectId)) {
+      throw new Error('Dependent ID must be a valid ObjectId');
     }
 
     await db.collection('dependents').updateOne(

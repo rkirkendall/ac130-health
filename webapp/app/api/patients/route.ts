@@ -1,2 +1,2 @@
-export { GET } from '../dependents/route';
+export { GET, POST } from '../dependents/route';
 

@@ -2,7 +2,6 @@ export interface Dependent {
   _id: string;
   dependent_id: string;
   record_identifier: string;
-  external_ref?: string;
   archived?: boolean;
   phi_vault_id?: string;
   has_phi?: boolean;
@@ -14,7 +13,6 @@ export interface PhiVaultEntry {
   _id?: string;
   dependent_id?: string;
   legal_name?: { given?: string; family?: string };
-  preferred_name?: string;
   relationship_note?: string;
   full_dob?: string;
   birth_year?: number;
