@@ -27,6 +27,8 @@ services:
     depends_on:
       mongodb:
         condition: service_healthy
+      presidio-analyzer:
+        condition: service_healthy
     ports:
       - "3002:3002"
     environment:
@@ -34,6 +36,7 @@ services:
       - HEALTH_RECORD_DB_NAME=health_record
       - MCP_TRANSPORT=http
       - MCP_PORT=3002
+      - PRESIDIO_ANALYZER_URL=http://presidio-analyzer:3000
     profiles:
       - mcp
 
@@ -51,6 +54,23 @@ services:
     environment:
       - MONGODB_URI=mongodb://mongodb:27017
       - NODE_ENV=production
+
+  presidio-analyzer:
+    build:
+      context: .
+      dockerfile: presidio-analyzer.Dockerfile
+    container_name: presidio-analyzer
+    restart: unless-stopped
+    ports:
+      - "5002:3000"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - mcp
 
 volumes:
   mongodb_data:

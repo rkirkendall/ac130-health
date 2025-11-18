@@ -108,6 +108,13 @@ export class Database {
     await this.dependents.createIndex({ record_identifier: 1 });
     await this.dependents.createIndex({ archived: 1 });
     await this.phiVault.createIndex({ dependent_id: 1 }, { unique: true });
+
+    const phiVaultEntries = this.getDb().collection('phi_vault_entries');
+    await phiVaultEntries.createIndex({ dependent_id: 1 });
+    await phiVaultEntries.createIndex({ resource_id: 1 });
+    await phiVaultEntries.createIndex({ field_path: 1 });
+    await phiVaultEntries.createIndex({ resource_type: 1, field_path: 1, dependent_id: 1 });
+    await phiVaultEntries.createIndex({ updated_at: -1 });
     
     await this.visits.createIndex({ dependent_id: 1, created_at: -1 });
     await this.prescriptions.createIndex({ dependent_id: 1, created_at: -1 });

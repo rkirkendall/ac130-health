@@ -4,6 +4,14 @@ import { z, type ZodType } from 'zod';
 import { zodToJsonSchemaForMCP } from './schema-utils.js';
 import type { PersistenceAdapter } from './persistence.js';
 import { HEALTH_SUMMARY_OUTLINE_URI, HEALTH_SUMMARY_OUTLINE_MARKDOWN } from './resources.js';
+import {
+  detectPhi,
+  vaultAndSanitize,
+} from './phi/index.js';
+import { MongoPhiVaultAdapter } from '../persistence/mongo-phi-vault.js';
+import { ObjectId } from 'mongodb';
+import isEqual from 'lodash/isEqual.js';
+import { separatePhiPayload, upsertStructuredPhiVault } from './phi/dependent.js';
 
 /**
  * Extract helpful schema hints from validation errors
@@ -979,6 +987,19 @@ export async function createResource(
       throw new Error(`Resource type ${resource_type} does not support batch creation`);
     }
 
+    // This is a simplified implementation for batch PHI handling.
+    // A more robust solution would handle per-record PHI.
+    const detectedInBatch = validatedData
+      .map((item: any) => detectPhi(item, resource_type))
+      .flat();
+
+    if (detectedInBatch.length > 0) {
+      console.log(`PHI DETECTED in ${resource_type} (batch):`, detectedInBatch);
+      // NOTE: Vaulting and sanitization are not yet implemented for batch operations.
+      // This would require a more complex implementation to map vaulted entries
+      // back to the correct records.
+    }
+
     const records = validatedData.map((item: any) => {
       const normalized = ensureArchiveFlag(item as Record<string, unknown>);
       return {
@@ -1036,10 +1057,17 @@ export async function createResource(
   }
 
   // Handle single creation
-  const normalizedData =
+  let normalizedData =
     validatedData && typeof validatedData === 'object'
       ? ensureArchiveFlag(validatedData as Record<string, unknown>)
       : (validatedData as Record<string, unknown>);
+
+  let dependentPhiPayload: Record<string, unknown> | undefined;
+  if (resourceType === 'dependent' && normalizedData && typeof normalizedData === 'object') {
+    const separation = separatePhiPayload(normalizedData as Record<string, unknown>);
+    normalizedData = separation.sanitized;
+    dependentPhiPayload = separation.phiPayload;
+  }
 
   const record = {
     ...normalizedData,
@@ -1051,6 +1079,50 @@ export async function createResource(
 
   const inserted = await persistence.create(record);
   const formatted = persistence.toExternal(inserted, resourceDef.idField);
+
+  const resourceId = new ObjectId(formatted[resourceDef.idField] as string);
+  const pendingUpdates: Record<string, unknown> = {};
+
+  if (resourceType === 'dependent' && dependentPhiPayload) {
+    const phiVaultId = await upsertStructuredPhiVault(
+      adapter.getDb(),
+      resourceId,
+      dependentPhiPayload
+    );
+    pendingUpdates.phi_vault_id = phiVaultId;
+  }
+
+  const phiFields = resourceDef.phiFields ?? [];
+  if (phiFields.length > 0) {
+    const dependentIdString = extractDependentIds(resourceType, resourceDef, formatted)[0];
+    if (!dependentIdString) {
+      console.warn(
+        `Skipping PHI vaulting for ${resourceType} ${resourceId.toHexString()} - dependent_id not found`
+      );
+    } else {
+      const dependentId = new ObjectId(dependentIdString);
+      const sanitizedForUpdate = await vaultAndSanitize(
+        new MongoPhiVaultAdapter(adapter.getDb()),
+        resourceType,
+        resourceId,
+        dependentId,
+        normalizedData
+      );
+
+      if (!isEqual(sanitizedForUpdate, normalizedData)) {
+        Object.assign(pendingUpdates, sanitizedForUpdate);
+      }
+    }
+  }
+
+  if (Object.keys(pendingUpdates).length > 0) {
+    await persistence.updateById(resourceId.toHexString(), { set: pendingUpdates });
+    Object.assign(formatted, pendingUpdates);
+    if (pendingUpdates.phi_vault_id instanceof ObjectId) {
+      formatted.phi_vault_id = pendingUpdates.phi_vault_id.toHexString();
+    }
+  }
+
   let meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
   const copy = HEALTH_SUMMARY_SUGGESTION_COPY[resourceType];
   const plans = copy
@@ -1166,13 +1238,74 @@ export async function updateResource(
   );
   
   // Remove the id field from updates (it's used for querying, not updating)
-  const { [resourceDef.idField]: _, ...updates } = validatedUpdate;
+  const { [resourceDef.idField]: _, ...extractedUpdates } = validatedUpdate;
+
+  let updates = extractedUpdates as Record<string, unknown>;
+  let dependentPhiPayload: Record<string, unknown> | undefined;
+  if (resource_type === 'dependent') {
+    const separation = separatePhiPayload(updates);
+    updates = separation.sanitized;
+    dependentPhiPayload = separation.phiPayload;
+  }
+
+  const existingRecord = await persistence.findById(id);
+  if (!existingRecord) {
+    throw new Error(`${resourceDef.name} not found`);
+  }
+
+  const resourceIdForVault = new ObjectId(id);
+  const pendingUpdates: Record<string, unknown> = { ...updates };
+
+  const phiFields = resourceDef.phiFields ?? [];
+  if (phiFields.length > 0) {
+    const dependentIdForVaultString = extractDependentIds(
+      resource_type as ResourceType,
+      resourceDef,
+      existingRecord
+    )[0];
+
+    if (!dependentIdForVaultString) {
+      console.warn(
+        `Skipping PHI vaulting for ${resource_type} ${id} - dependent_id not found`
+      );
+    } else {
+      const dependentIdForVault = new ObjectId(dependentIdForVaultString);
+      const sanitizedUpdates = await vaultAndSanitize(
+        new MongoPhiVaultAdapter(adapter.getDb()),
+        resource_type,
+        resourceIdForVault,
+        dependentIdForVault,
+        updates
+      );
+
+      if (!isEqual(sanitizedUpdates, updates)) {
+        Object.assign(pendingUpdates, sanitizedUpdates);
+      }
+    }
+  }
+
+  if (resource_type === 'dependent' && dependentPhiPayload) {
+    const existingVaultId =
+      existingRecord.phi_vault_id instanceof ObjectId
+        ? existingRecord.phi_vault_id
+        : typeof existingRecord.phi_vault_id === 'string' && ObjectId.isValid(existingRecord.phi_vault_id)
+        ? new ObjectId(existingRecord.phi_vault_id)
+        : undefined;
+
+    const phiVaultId = await upsertStructuredPhiVault(
+      adapter.getDb(),
+      resourceIdForVault,
+      dependentPhiPayload,
+      existingVaultId
+    );
+    pendingUpdates.phi_vault_id = phiVaultId;
+  }
 
   const result = await persistence.updateById(
     id,
     {
       set: {
-        ...updates,
+        ...pendingUpdates,
         updated_at: new Date(),
         updated_by: 'mcp',
       },

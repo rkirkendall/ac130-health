@@ -1,3 +1,5 @@
+import { Db } from 'mongodb';
+
 export type Query = Record<string, unknown>;
 
 export interface UpdateOperations {
@@ -13,36 +15,20 @@ export interface UpdateOptions {
 }
 
 export interface ResourcePersistence {
-  readonly collectionName: string;
-
+  find(filter: Query, limit?: number): Promise<any[]>;
+  findById(id: string): Promise<any | null>;
+  findOne(filter: Query): Promise<any | null>;
+  create(data: object): Promise<any>;
+  createMany(data: object[]): Promise<any[]>;
+  updateById(id: string, updates: object, options?: object): Promise<any | null>;
+  updateOne(filter: Query, updates: object, options?: object): Promise<any | null>;
+  deleteById(id: string): Promise<any | null>;
+  toExternal(data: object, idField: string): Record<string, unknown>;
   validateId(id: string): boolean;
-
-  create(record: Record<string, unknown>): Promise<Record<string, unknown>>;
-  createMany(records: Record<string, unknown>[]): Promise<Record<string, unknown>[]>;
-
-  findById(id: string): Promise<Record<string, unknown> | null>;
-  findOne(filter: Query): Promise<Record<string, unknown> | null>;
-  find(filter: Query, limit: number): Promise<Record<string, unknown>[]>;
-
-  updateById(
-    id: string,
-    operations: UpdateOperations,
-    options?: UpdateOptions
-  ): Promise<Record<string, unknown> | null>;
-
-  updateOne(
-    filter: Query,
-    operations: UpdateOperations,
-    options?: UpdateOptions
-  ): Promise<Record<string, unknown> | null>;
-
-  deleteById(id: string): Promise<Record<string, unknown> | null>;
-
-  normalizeFilter(filter: Query): Query;
-  toExternal(record: Record<string, unknown>, idField: string): Record<string, unknown>;
 }
 
 export interface PersistenceAdapter {
   forCollection(collectionName: string): ResourcePersistence;
+  getDb(): Db;
 }
 

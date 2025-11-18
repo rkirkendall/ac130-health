@@ -68,6 +68,13 @@ export type ResourceType =
   | 'imaging'
   | 'insurance';
 
+export type PhiExtractionStrategy = 'whole-field' | 'substring';
+
+export interface PhiField {
+  path: string;
+  strategy: PhiExtractionStrategy;
+}
+
 export interface ResourceDefinition {
   name: string;
   description: string;
@@ -78,6 +85,7 @@ export interface ResourceDefinition {
   getSchema: z.ZodType;
   listSchema?: z.ZodType; // Optional list/filter schema
   supportsBatch: boolean;
+  phiFields?: PhiField[];
 }
 
 export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
@@ -156,6 +164,7 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetConditionSchema,
     listSchema: ListConditionsSchema,
     supportsBatch: true,
+    phiFields: [{ path: 'notes', strategy: 'substring' }],
   },
   allergy: {
     name: 'allergy',

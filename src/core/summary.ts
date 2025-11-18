@@ -19,7 +19,6 @@ export async function updateHealthSummary(adapter: PersistenceAdapter, args: unk
       },
       setOnInsert: {
         dependent_id: validated.dependent_id,
-        archived: false,
       },
     },
     {

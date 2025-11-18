@@ -286,11 +286,18 @@ class MongoResourcePersistence implements ResourcePersistence {
 }
 
 export class MongoPersistenceAdapter implements PersistenceAdapter {
-  constructor(private readonly db: Db) {}
+  private db: Db;
+
+  constructor(db: Db) {
+    this.db = db;
+  }
 
   forCollection(collectionName: string): ResourcePersistence {
-    const collection = this.db.collection<Record<string, unknown>>(collectionName);
-    return new MongoResourcePersistence(collection);
+    return new MongoResourcePersistence(this.db.collection(collectionName));
+  }
+
+  getDb(): Db {
+    return this.db;
   }
 }
 
