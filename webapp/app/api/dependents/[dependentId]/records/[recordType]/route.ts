@@ -17,6 +17,30 @@ export async function GET(
       .find({ dependent_id: dependentObjectId })
       .sort({ created_at: -1 })
       .toArray();
+
+    // Resolve PHI tokens for active_summaries
+    let phiMap: Record<string, string> = {};
+    if (recordType === 'active_summaries') {
+      const vaultIds = new Set<string>();
+      records.forEach(record => {
+        if (record.summary_text && typeof record.summary_text === 'string') {
+          const matches = record.summary_text.match(/phi:vault:[0-9a-f]{24}/g);
+          if (matches) {
+            matches.forEach((m: string) => vaultIds.add(m.split(':')[2]));
+          }
+        }
+      });
+
+      if (vaultIds.size > 0) {
+        const vaultEntries = await db.collection('phi_vault_entries')
+          .find({ _id: { $in: Array.from(vaultIds).map(id => new ObjectId(id)) } })
+          .toArray();
+        
+        vaultEntries.forEach(entry => {
+          phiMap[entry._id.toString()] = entry.value;
+        });
+      }
+    }
     
     const recordsWithIds = records.map(record => ({
       ...record,
@@ -30,6 +54,7 @@ export async function GET(
       recorded_by: record.recorded_by?.toString ? record.recorded_by.toString() : record.recorded_by,
       performed_by: record.performed_by?.toString ? record.performed_by.toString() : record.performed_by,
       administered_by: record.administered_by?.toString ? record.administered_by.toString() : record.administered_by,
+      _phi_resolved: recordType === 'active_summaries' ? phiMap : undefined,
     }));
     
     return NextResponse.json(recordsWithIds);

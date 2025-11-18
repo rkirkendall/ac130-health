@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  Fragment,
   type ChangeEvent,
   type FormEvent,
 } from 'react';
@@ -295,6 +296,37 @@ const getRecordTitle = (
     `Record ${index + 1}`
   );
 };
+
+function PhiTextRenderer({ text, phiMap }: { text: string; phiMap?: Record<string, string> }) {
+  if (!text) return null;
+  if (!phiMap) return <>{text}</>;
+
+  const parts = text.split(/(phi:vault:[0-9a-f]{24})/g);
+
+  return (
+    <>
+      {parts.map((part, index) => {
+        if (part.startsWith('phi:vault:')) {
+          const id = part.split(':')[2];
+          const value = phiMap[id];
+
+          if (value) {
+            return (
+              <span
+                key={index}
+                className="mx-0.5 inline-flex items-center rounded border border-dashed border-slate-400 bg-slate-100 px-1.5 py-0 text-sm font-medium text-slate-900 select-all"
+                title="Protected Health Information"
+              >
+                {value}
+              </span>
+            );
+          }
+        }
+        return <Fragment key={index}>{part}</Fragment>;
+      })}
+    </>
+  );
+}
 
 export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const router = useRouter();
@@ -1119,7 +1151,7 @@ const renderProfile = () => {
                     Last updated {formatDateValue(record.updated_at) ?? 'N/A'}
                   </p>
                   <pre className="mt-2 whitespace-pre-wrap font-sans text-sm leading-relaxed">
-                    {record.summary_text}
+                    <PhiTextRenderer text={record.summary_text} phiMap={record._phi_resolved} />
                   </pre>
                 </div>
               ))}

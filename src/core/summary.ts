@@ -1,23 +1,63 @@
 import { UpdateHealthSummarySchema } from './types.js';
 import type { PersistenceAdapter } from './persistence.js';
+import type { PhiVaultAdapter } from './phi/types.js';
+import { vaultAndSanitizeFields } from './phi/vault.js';
+import { ObjectId } from 'mongodb';
 
-export async function updateHealthSummary(adapter: PersistenceAdapter, args: unknown) {
+export async function updateHealthSummary(
+  adapter: PersistenceAdapter,
+  vaultAdapter: PhiVaultAdapter,
+  args: unknown
+) {
   const validated = UpdateHealthSummarySchema.parse(args);
   const persistence = adapter.forCollection('active_summaries');
 
   if (!persistence.validateId(validated.dependent_id)) {
     throw new Error('Invalid dependent_id');
   }
+
+  const dependentId = new ObjectId(validated.dependent_id);
+
+  // Find existing summary to get ID, or generate new one
+  const existingSummary = await persistence.findOne({ dependent_id: validated.dependent_id });
+  const summaryId = existingSummary?._id
+    ? new ObjectId(existingSummary._id as string)
+    : new ObjectId();
+
+  // Fetch dependent to get known identifiers
+  const dependentPersistence = adapter.forCollection('dependents');
+  const dependent = await dependentPersistence.findById(validated.dependent_id);
   
+  const knownIdentifiers: string[] = [];
+  if (dependent) {
+    if (dependent.record_identifier) knownIdentifiers.push(dependent.record_identifier);
+    if (dependent.phi?.legal_name?.given) knownIdentifiers.push(dependent.phi.legal_name.given);
+    if (dependent.phi?.legal_name?.family) knownIdentifiers.push(dependent.phi.legal_name.family);
+    if (dependent.phi?.preferred_name) knownIdentifiers.push(dependent.phi.preferred_name);
+  }
+
+  // Sanitize payload
+  const payload = { summary_text: validated.summary_text };
+  const sanitizedPayload = await vaultAndSanitizeFields(
+    vaultAdapter,
+    'health_summary',
+    summaryId,
+    dependentId,
+    payload,
+    [{ path: 'summary_text', strategy: 'substring' }],
+    knownIdentifiers
+  );
+
   const result = await persistence.updateOne(
     { dependent_id: validated.dependent_id },
     {
       set: {
-        summary_text: validated.summary_text,
+        summary_text: sanitizedPayload.summary_text,
         updated_at: new Date(),
         archived: false,
       },
       setOnInsert: {
+        _id: summaryId,
         dependent_id: validated.dependent_id,
       },
     },
