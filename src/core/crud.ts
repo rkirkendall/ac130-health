@@ -1293,7 +1293,9 @@ export async function updateResource(
   }
 
   // Validate update data against update schema (but merge with id field)
-  const updateData = { [resourceDef.idField]: id, ...data };
+  // We also strip common immutable/system fields that LLMs might hallucinate/echo back
+  const { dependent_id, created_at, updated_at, created_by, updated_by, ...cleanData } = data;
+  const updateData = { [resourceDef.idField]: id, ...cleanData };
   const validatedUpdate = parseWithEnhancedErrors(
     resourceDef.updateSchema,
     updateData,
