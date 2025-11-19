@@ -33,6 +33,10 @@ const OBJECT_ID_FIELDS = new Set<string>([
 ]);
 
 function convertValueForIdField(value: unknown): unknown {
+  if (value instanceof ObjectId) {
+    return value;
+  }
+
   if (Array.isArray(value)) {
     return value.map(convertValueForIdField);
   }
@@ -231,11 +235,22 @@ class MongoResourcePersistence implements ResourcePersistence {
       return { ...record };
     }
 
-    return {
+    const external = {
       ...record,
       _id: stringId,
       [idField]: stringId,
     };
+
+    for (const key of Object.keys(external)) {
+      if (this.objectIdFields.has(key) && key !== '_id' && key !== idField) {
+        const val = external[key];
+        if (val instanceof ObjectId) {
+          external[key] = val.toHexString();
+        }
+      }
+    }
+
+    return external;
   }
 
   private buildUpdateDoc(operations: UpdateOperations) {

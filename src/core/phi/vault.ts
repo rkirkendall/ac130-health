@@ -4,8 +4,9 @@ import { getResourceDefinition } from '../resource-registry.js';
 import { analyzeText, PresidioRecognizerResult } from './presidio.js';
 import _ from 'lodash';
 
-export function generatePhiReference(vaultId: ObjectId): string {
-  return `phi:vault:${vaultId.toHexString()}`;
+export function generatePhiReference(vaultId: ObjectId, type?: string): string {
+  const typePart = type ? `:${type}` : '';
+  return `phi:vault${typePart}:${vaultId.toHexString()}`;
 }
 
 function dedupeAnalyzerResults(results: PresidioRecognizerResult[]): PresidioRecognizerResult[] {
@@ -194,7 +195,9 @@ export async function vaultAndSanitizeFields(
 
     const vaultIds = await vaultAdapter.upsertPhiEntries(entriesToUpsert);
 
-    const references = vaultIds.map(generatePhiReference);
+    const references = vaultIds.map((id, i) => 
+      generatePhiReference(id, entriesToUpsert[i].phi_type ?? undefined)
+    );
     const sanitizedValue = manualSanitize(originalValue, allowedAnalyzerResults, references);
     _.set(sanitizedPayload, phiField.path, sanitizedValue);
   }

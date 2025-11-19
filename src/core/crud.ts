@@ -11,7 +11,14 @@ import {
 import { MongoPhiVaultAdapter } from '../persistence/mongo-phi-vault.js';
 import { ObjectId } from 'mongodb';
 import isEqual from 'lodash/isEqual.js';
-import { separatePhiPayload, upsertStructuredPhiVault } from './phi/dependent.js';
+import { 
+  separatePhiPayload, 
+  upsertStructuredPhiVault, 
+  getStructuredPhiVault,
+  getStructuredPhiVaults,
+  getUnstructuredPhiVaultEntries
+} from './phi/dependent.js';
+import { computeDemographics, deidentifyString } from './phi/deidentify.js';
 
 /**
  * Extract helpful schema hints from validation errors
@@ -1084,12 +1091,18 @@ export async function createResource(
   const pendingUpdates: Record<string, unknown> = {};
 
   if (resourceType === 'dependent' && dependentPhiPayload) {
-    const phiVaultId = await upsertStructuredPhiVault(
-      adapter.getDb(),
-      resourceId,
-      dependentPhiPayload
-    );
-    pendingUpdates.phi_vault_id = phiVaultId;
+    if (typeof adapter.getDb === 'function') {
+      const phiVaultId = await upsertStructuredPhiVault(
+        adapter.getDb(),
+        resourceId,
+        dependentPhiPayload
+      );
+      pendingUpdates.phi_vault_id = phiVaultId;
+    }
+    
+    // Compute and inject de-identified profile
+    const deidentified = computeDemographics(dependentPhiPayload as any);
+    (formatted as any).deidentified_profile = deidentified;
   }
 
   const phiFields = resourceDef.phiFields ?? [];
@@ -1101,16 +1114,18 @@ export async function createResource(
       );
     } else {
       const dependentId = new ObjectId(dependentIdString);
-      const sanitizedForUpdate = await vaultAndSanitize(
-        new MongoPhiVaultAdapter(adapter.getDb()),
-        resourceType,
-        resourceId,
-        dependentId,
-        normalizedData
-      );
+      if (typeof adapter.getDb === 'function') {
+        const sanitizedForUpdate = await vaultAndSanitize(
+          new MongoPhiVaultAdapter(adapter.getDb()),
+          resourceType,
+          resourceId,
+          dependentId,
+          normalizedData
+        );
 
-      if (!isEqual(sanitizedForUpdate, normalizedData)) {
-        Object.assign(pendingUpdates, sanitizedForUpdate);
+        if (!isEqual(sanitizedForUpdate, normalizedData)) {
+          Object.assign(pendingUpdates, sanitizedForUpdate);
+        }
       }
     }
   }
@@ -1179,13 +1194,62 @@ export async function getResource(adapter: PersistenceAdapter, args: unknown) {
 
   const record = await persistence.findById(id);
 
-  if (!record) {
+    if (!record) {
     throw new Error(`${resourceDef.name} not found`);
   }
 
   const formatted = persistence.toExternal(record, resourceDef.idField);
   if (isArchivedRecord(formatted)) {
     throw new Error(`${resourceDef.name} not found`);
+  }
+
+  const db = typeof adapter.getDb === 'function' ? adapter.getDb() : null;
+
+  if (resource_type === 'dependent' && formatted.phi_vault_id && db) {
+    const vaultId = new ObjectId(formatted.phi_vault_id as string);
+    const vaultEntry = await getStructuredPhiVault(db, vaultId);
+    if (vaultEntry) {
+      const deidentified = computeDemographics(vaultEntry);
+      (formatted as any).deidentified_profile = deidentified;
+    }
+  }
+
+  // Apply unstructured PHI de-identification to text fields
+  if (db && resourceDef.phiFields && resourceDef.phiFields.length > 0) {
+    const resourceId = new ObjectId(formatted[resourceDef.idField] as string);
+    const unstructuredEntries = await getUnstructuredPhiVaultEntries(db, [resourceId]);
+    
+    if (unstructuredEntries.length > 0) {
+      // We only need to check fields that are strings and might contain tokens
+      // For now, simple approach: JSON stringify, replace, parse back?
+      // Or specific fields. Let's use specific fields from definition.
+      for (const fieldDef of resourceDef.phiFields) {
+        // For now, we only handle top-level or simple nested string fields
+        // Complex nesting traversal might be needed, but let's start simple.
+        // Using lodash get/set would be ideal but we need to iterate.
+        // The deidentifyString function handles the token replacement.
+        
+        // NOTE: _.get/set are not imported here, but we can import them or do simple access
+        // Actually, resourceDef.phiFields has paths.
+        // But wait, the formatted record might have the token in ANY string field if
+        // it was caught by a "whole-field" or "substring" detector.
+        // However, we only vault what matches phiFields configuration.
+        // So we should iterate phiFields paths.
+        // BUT: We don't have lodash here.
+        
+        // Let's do a quick string scan on the serialized record to be safe and comprehensive?
+        // It might be safer to just stringify the whole record, replace tokens, and parse back.
+        // This covers all fields and nested structures without complex traversal logic.
+        const jsonStr = JSON.stringify(formatted);
+        if (jsonStr.includes('phi:vault:')) {
+           const deidentifiedStr = deidentifyString(jsonStr, unstructuredEntries);
+           if (deidentifiedStr !== jsonStr) {
+             const deidentifiedRecord = JSON.parse(deidentifiedStr);
+             Object.assign(formatted, deidentifiedRecord);
+           }
+        }
+      }
+    }
   }
 
   return {
@@ -1270,35 +1334,39 @@ export async function updateResource(
       );
     } else {
       const dependentIdForVault = new ObjectId(dependentIdForVaultString);
-      const sanitizedUpdates = await vaultAndSanitize(
-        new MongoPhiVaultAdapter(adapter.getDb()),
-        resource_type,
-        resourceIdForVault,
-        dependentIdForVault,
-        updates
-      );
+      if (typeof adapter.getDb === 'function') {
+        const sanitizedUpdates = await vaultAndSanitize(
+          new MongoPhiVaultAdapter(adapter.getDb()),
+          resource_type,
+          resourceIdForVault,
+          dependentIdForVault,
+          updates
+        );
 
-      if (!isEqual(sanitizedUpdates, updates)) {
-        Object.assign(pendingUpdates, sanitizedUpdates);
+        if (!isEqual(sanitizedUpdates, updates)) {
+          Object.assign(pendingUpdates, sanitizedUpdates);
+        }
       }
     }
   }
 
   if (resource_type === 'dependent' && dependentPhiPayload) {
-    const existingVaultId =
-      existingRecord.phi_vault_id instanceof ObjectId
-        ? existingRecord.phi_vault_id
-        : typeof existingRecord.phi_vault_id === 'string' && ObjectId.isValid(existingRecord.phi_vault_id)
-        ? new ObjectId(existingRecord.phi_vault_id)
-        : undefined;
+    if (typeof adapter.getDb === 'function') {
+      const existingVaultId =
+        existingRecord.phi_vault_id instanceof ObjectId
+          ? existingRecord.phi_vault_id
+          : typeof existingRecord.phi_vault_id === 'string' && ObjectId.isValid(existingRecord.phi_vault_id)
+          ? new ObjectId(existingRecord.phi_vault_id)
+          : undefined;
 
-    const phiVaultId = await upsertStructuredPhiVault(
-      adapter.getDb(),
-      resourceIdForVault,
-      dependentPhiPayload,
-      existingVaultId
-    );
-    pendingUpdates.phi_vault_id = phiVaultId;
+      const phiVaultId = await upsertStructuredPhiVault(
+        adapter.getDb(),
+        resourceIdForVault,
+        dependentPhiPayload,
+        existingVaultId
+      );
+      pendingUpdates.phi_vault_id = phiVaultId;
+    }
   }
 
   const result = await persistence.updateById(
@@ -1318,6 +1386,18 @@ export async function updateResource(
   }
 
   const formatted = persistence.toExternal(result, resourceDef.idField);
+
+  if (resource_type === 'dependent' && formatted.phi_vault_id) {
+    if (typeof adapter.getDb === 'function') {
+      const db = adapter.getDb();
+      const vaultId = new ObjectId(formatted.phi_vault_id as string);
+      const vaultEntry = await getStructuredPhiVault(db, vaultId);
+      if (vaultEntry) {
+        (formatted as any).deidentified_profile = computeDemographics(vaultEntry);
+      }
+    }
+  }
+
   const resourceTypeForMeta = resourceDef.name as ResourceType;
   let meta = buildHealthSummaryMeta(resourceTypeForMeta, 'update', resourceDef, formatted);
   const copy = HEALTH_SUMMARY_SUGGESTION_COPY[resourceTypeForMeta];
@@ -1455,6 +1535,54 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
   const visibleRecords = hasArchivedFilter
     ? formattedRecords
     : formattedRecords.filter((record) => !isArchivedRecord(record));
+
+  const db = typeof adapter.getDb === 'function' ? adapter.getDb() : null;
+
+  if (resource_type === 'dependent' && db) {
+    const vaultIds: ObjectId[] = [];
+    for (const rec of visibleRecords) {
+      if (rec.phi_vault_id) {
+        vaultIds.push(new ObjectId(rec.phi_vault_id as string));
+      }
+    }
+    
+    if (vaultIds.length > 0) {
+      const vaultsMap = await getStructuredPhiVaults(db, vaultIds);
+      for (const rec of visibleRecords) {
+        if (rec.phi_vault_id) {
+           const vaultEntry = vaultsMap.get(rec.phi_vault_id as string);
+           if (vaultEntry) {
+             (rec as any).deidentified_profile = computeDemographics(vaultEntry);
+           }
+        }
+      }
+    }
+  }
+
+  // Apply unstructured PHI de-identification
+  if (db && resourceDef.phiFields && resourceDef.phiFields.length > 0 && visibleRecords.length > 0) {
+    const resourceIds = visibleRecords.map(r => new ObjectId(r[resourceDef.idField] as string));
+    const unstructuredEntries = await getUnstructuredPhiVaultEntries(db, resourceIds);
+    
+    if (unstructuredEntries.length > 0) {
+      // Optimization: Check if any record string contains 'phi:vault:' before processing
+      // But for list, stringifying array is expensive.
+      // We can just loop records.
+      for (const rec of visibleRecords) {
+        const jsonStr = JSON.stringify(rec);
+        if (jsonStr.includes('phi:vault:')) {
+           // Filter entries for this resource only?
+           // deidentifyString accepts all entries and finds matches by ID.
+           // Passing all entries is fine, the map lookup is fast.
+           const deidentifiedStr = deidentifyString(jsonStr, unstructuredEntries);
+           if (deidentifiedStr !== jsonStr) {
+             const deidentifiedRecord = JSON.parse(deidentifiedStr);
+             Object.assign(rec, deidentifiedRecord);
+           }
+        }
+      }
+    }
+  }
 
   return {
     content: [

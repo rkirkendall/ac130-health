@@ -1,4 +1,6 @@
 import { Db, ObjectId } from 'mongodb';
+import { PhiVaultEntry } from '../types.js';
+import { PhiEntry } from './types.js';
 
 function hasAnyValue(value: unknown): boolean {
   if (value === null || value === undefined) {
@@ -106,3 +108,37 @@ export async function upsertStructuredPhiVault(
   return insertResult.insertedId;
 }
 
+export async function getStructuredPhiVault(
+  db: Db,
+  vaultId: ObjectId
+): Promise<PhiVaultEntry | null> {
+  const collection = db.collection<PhiVaultEntry>('phi_vault');
+  return collection.findOne({ _id: vaultId });
+}
+
+export async function getStructuredPhiVaults(
+  db: Db,
+  vaultIds: ObjectId[]
+): Promise<Map<string, PhiVaultEntry>> {
+  const collection = db.collection<PhiVaultEntry>('phi_vault');
+  const entries = await collection.find({ _id: { $in: vaultIds } }).toArray();
+  
+  const map = new Map<string, PhiVaultEntry>();
+  for (const entry of entries) {
+    if (entry._id) {
+      map.set(entry._id.toHexString(), entry);
+    }
+  }
+  return map;
+}
+
+export async function getUnstructuredPhiVaultEntries(
+  db: Db,
+  resourceIds: ObjectId[]
+): Promise<PhiEntry[]> {
+  if (resourceIds.length === 0) {
+    return [];
+  }
+  const collection = db.collection<PhiEntry>('phi_vault_entries');
+  return collection.find({ resource_id: { $in: resourceIds } }).toArray();
+}

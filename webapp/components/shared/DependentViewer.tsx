@@ -301,13 +301,14 @@ function PhiTextRenderer({ text, phiMap }: { text: string; phiMap?: Record<strin
   if (!text) return null;
   if (!phiMap) return <>{text}</>;
 
-  const parts = text.split(/(phi:vault:[0-9a-f]{24})/g);
+  const parts = text.split(/(phi:vault(?::[A-Z_]+)?:[0-9a-f]{24})/g);
 
   return (
     <>
       {parts.map((part, index) => {
         if (part.startsWith('phi:vault:')) {
-          const id = part.split(':')[2];
+          const segments = part.split(':');
+          const id = segments[segments.length - 1];
           const value = phiMap[id];
 
           if (value) {

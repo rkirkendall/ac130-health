@@ -22,11 +22,19 @@ export async function GET(
     let phiMap: Record<string, string> = {};
     if (recordType === 'active_summaries') {
       const vaultIds = new Set<string>();
+      const tokenRegex = /phi:vault(?::[A-Z_]+)?:([0-9a-f]{24})/g;
+
       records.forEach(record => {
         if (record.summary_text && typeof record.summary_text === 'string') {
-          const matches = record.summary_text.match(/phi:vault:[0-9a-f]{24}/g);
+          const matches = record.summary_text.match(tokenRegex);
           if (matches) {
-            matches.forEach((m: string) => vaultIds.add(m.split(':')[2]));
+            matches.forEach((match: string) => {
+              const parts = match.split(':');
+              const id = parts[parts.length - 1];
+              if (id) {
+                vaultIds.add(id);
+              }
+            });
           }
         }
       });
