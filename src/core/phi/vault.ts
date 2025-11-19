@@ -1,8 +1,12 @@
 import { ObjectId } from 'mongodb';
 import { DetectedPhi, PhiEntry, PhiVaultAdapter } from './types.js';
 import { getResourceDefinition } from '../resource-registry.js';
-import { analyzeText, PresidioRecognizerResult } from './presidio.js';
+import { analyzeText as defaultAnalyzeText, PresidioRecognizerResult } from './presidio.js';
 import _ from 'lodash';
+
+export const _deps = {
+  analyzeText: defaultAnalyzeText
+};
 
 export function generatePhiReference(vaultId: ObjectId, type?: string): string {
   const typePart = type ? `:${type}` : '';
@@ -127,7 +131,7 @@ export async function vaultAndSanitizeFields(
       continue;
     }
 
-    const analyzerResultsRaw = await analyzeText(originalValue);
+    const analyzerResultsRaw = await _deps.analyzeText(originalValue);
     const analyzerResults = dedupeAnalyzerResults(analyzerResultsRaw);
     if (analyzerResults.length === 0) {
       continue;

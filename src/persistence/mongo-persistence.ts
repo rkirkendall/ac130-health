@@ -84,7 +84,7 @@ function convertObjectIdFilters(
 
 }
 
-class MongoResourcePersistence implements ResourcePersistence {
+export class MongoResourcePersistence implements ResourcePersistence {
   private readonly objectIdFields: Set<string>;
 
   constructor(private readonly collection: Collection<Record<string, unknown>>) {
