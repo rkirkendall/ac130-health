@@ -132,6 +132,14 @@ export async function getStructuredPhiVaults(
   return map;
 }
 
+export async function getStructuredPhiVaultByDependentId(
+  db: Db,
+  dependentId: ObjectId
+): Promise<PhiVaultEntry | null> {
+  const collection = db.collection<PhiVaultEntry>('phi_vault');
+  return collection.findOne({ dependent_id: dependentId });
+}
+
 export async function getUnstructuredPhiVaultEntries(
   db: Db,
   resourceIds: ObjectId[]

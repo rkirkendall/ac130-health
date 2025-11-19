@@ -3,6 +3,10 @@ import type { PersistenceAdapter } from './persistence.js';
 import type { PhiVaultAdapter } from './phi/types.js';
 import { vaultAndSanitizeFields } from './phi/vault.js';
 import { ObjectId } from 'mongodb';
+import {
+  getStructuredPhiVault,
+  getStructuredPhiVaultByDependentId,
+} from './phi/dependent.js';
 
 export async function updateHealthSummary(
   adapter: PersistenceAdapter,
@@ -24,17 +28,68 @@ export async function updateHealthSummary(
     ? new ObjectId(existingSummary._id as string)
     : new ObjectId();
 
+  // Helper to safely collect identifiers
+  const identifierSet = new Set<string>();
+  const addIdentifier = (value: unknown) => {
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed.length > 0) {
+        identifierSet.add(trimmed);
+      }
+    }
+  };
+
   // Fetch dependent to get known identifiers
   const dependentPersistence = adapter.forCollection('dependents');
   const dependent = await dependentPersistence.findById(validated.dependent_id);
   
-  const knownIdentifiers: string[] = [];
   if (dependent) {
-    if (dependent.record_identifier) knownIdentifiers.push(dependent.record_identifier);
-    if (dependent.phi?.legal_name?.given) knownIdentifiers.push(dependent.phi.legal_name.given);
-    if (dependent.phi?.legal_name?.family) knownIdentifiers.push(dependent.phi.legal_name.family);
-    if (dependent.phi?.preferred_name) knownIdentifiers.push(dependent.phi.preferred_name);
+    addIdentifier(dependent.record_identifier);
+    addIdentifier(dependent.external_ref);
+    if (dependent.phi?.legal_name?.given) addIdentifier(dependent.phi.legal_name.given);
+    if (dependent.phi?.legal_name?.family) addIdentifier(dependent.phi.legal_name.family);
+    if (dependent.phi?.preferred_name) addIdentifier(dependent.phi.preferred_name);
+    if (
+      dependent.phi?.legal_name?.given &&
+      dependent.phi?.legal_name?.family
+    ) {
+      addIdentifier(`${dependent.phi.legal_name.given} ${dependent.phi.legal_name.family}`);
+    }
   }
+
+  // Augment identifiers with structured PHI (legal name, preferred name, etc.)
+  const db = typeof adapter.getDb === 'function' ? adapter.getDb() : null;
+  if (db) {
+    const resolveObjectId = (value: unknown): ObjectId | null => {
+      if (value instanceof ObjectId) return value;
+      if (typeof value === 'string' && ObjectId.isValid(value)) {
+        return new ObjectId(value);
+      }
+      return null;
+    };
+
+    let vaultEntry = null;
+    const dependentPhiVaultId = resolveObjectId((dependent as any)?.phi_vault_id);
+    if (dependentPhiVaultId) {
+      vaultEntry = await getStructuredPhiVault(db, dependentPhiVaultId);
+    } else {
+      vaultEntry = await getStructuredPhiVaultByDependentId(db, dependentId);
+    }
+
+    if (vaultEntry) {
+      if (vaultEntry.legal_name?.given) addIdentifier(vaultEntry.legal_name.given);
+      if (vaultEntry.legal_name?.family) addIdentifier(vaultEntry.legal_name.family);
+      if (vaultEntry.preferred_name) addIdentifier(vaultEntry.preferred_name);
+      if (
+        vaultEntry.legal_name?.given &&
+        vaultEntry.legal_name?.family
+      ) {
+        addIdentifier(`${vaultEntry.legal_name.given} ${vaultEntry.legal_name.family}`);
+      }
+    }
+  }
+
+  const knownIdentifiers = Array.from(identifierSet);
 
   // Sanitize payload
   const payload = { summary_text: validated.summary_text };
