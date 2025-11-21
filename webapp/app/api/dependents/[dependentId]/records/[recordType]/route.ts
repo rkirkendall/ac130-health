@@ -2,6 +2,64 @@ import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 
+const RECORD_ID_FIELD_BY_COLLECTION: Record<string, string> = {
+  visits: 'visit_id',
+  prescriptions: 'prescription_id',
+  labs: 'lab_id',
+  treatments: 'treatment_id',
+  conditions: 'condition_id',
+  allergies: 'allergy_id',
+  immunizations: 'immunization_id',
+  vital_signs: 'vital_sign_id',
+  procedures: 'procedure_id',
+  imaging: 'imaging_id',
+  insurance: 'insurance_id',
+};
+
+const IMMUTABLE_FIELDS = new Set([
+  '_id',
+  'id',
+  'dependent_id',
+  'created_at',
+  'updated_at',
+  'created_by',
+  'updated_by',
+  'phi_vault_id',
+]);
+
+function extractRecordId(
+  payload: Record<string, unknown>,
+  recordType: string
+): string | undefined {
+  const aliasField = RECORD_ID_FIELD_BY_COLLECTION[recordType];
+  return (
+    (payload['id'] as string | undefined) ??
+    (payload['_id'] as string | undefined) ??
+    (aliasField ? (payload[aliasField] as string | undefined) : undefined)
+  );
+}
+
+function sanitizeUpdatePayload(
+  payload: Record<string, unknown>,
+  recordType: string
+): Record<string, unknown> {
+  const aliasField = RECORD_ID_FIELD_BY_COLLECTION[recordType];
+  const forbidden = new Set(IMMUTABLE_FIELDS);
+  if (aliasField) {
+    forbidden.add(aliasField);
+  }
+
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(payload)) {
+    if (forbidden.has(key)) {
+      continue;
+    }
+    sanitized[key] = value;
+  }
+
+  return sanitized;
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ dependentId: string; recordType: string }> }
@@ -19,7 +77,7 @@ export async function GET(
       .toArray();
 
     // Resolve PHI tokens for active_summaries
-    let phiMap: Record<string, string> = {};
+    const phiMap: Record<string, string> = {};
     if (recordType === 'active_summaries') {
       const vaultIds = new Set<string>();
       const tokenRegex = /phi:vault(?::[A-Z_]+)?:([0-9a-f]{24})/g;
@@ -113,18 +171,28 @@ export async function PUT(
 ) {
   try {
     const { dependentId, recordType } = await params;
-    const body = await request.json();
-    const { id, ...updateData } = body;
+    const rawBody = await request.json();
 
-    if (!id) {
+    if (!rawBody || typeof rawBody !== 'object' || Array.isArray(rawBody)) {
+      return NextResponse.json(
+        { error: 'Request body must be an object' },
+        { status: 400 }
+      );
+    }
+
+    const body = rawBody as Record<string, unknown>;
+    const recordId = extractRecordId(body, recordType);
+
+    if (!recordId) {
       return NextResponse.json({ error: 'Record ID is required' }, { status: 400 });
     }
 
     const client = await clientPromise;
     const db = client.db('health_record');
 
-    const recordObjectId = new ObjectId(id);
+    const recordObjectId = new ObjectId(recordId);
     const dependentObjectId = new ObjectId(dependentId);
+    const updateData = sanitizeUpdatePayload(body, recordType);
 
     const result = await db.collection(recordType).updateOne(
       { _id: recordObjectId, dependent_id: dependentObjectId },
