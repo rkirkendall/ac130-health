@@ -1082,7 +1082,7 @@ export async function createResource(
   const inserted = await persistence.create(record);
   const formatted = persistence.toExternal(inserted, resourceDef.idField);
 
-  const resourceId = new ObjectId(formatted[resourceDef.idField] as string);
+  const resourceId = formatted[resourceDef.idField] as string;
   const pendingUpdates: Record<string, unknown> = {};
 
   if (resourceType === 'dependent' && dependentPhiPayload) {
@@ -1102,10 +1102,10 @@ export async function createResource(
     const dependentIdString = extractDependentIds(resourceType, resourceDef, formatted)[0];
     if (!dependentIdString) {
       console.warn(
-        `Skipping PHI vaulting for ${resourceType} ${resourceId.toHexString()} - dependent_id not found`
+        `Skipping PHI vaulting for ${resourceType} ${resourceId} - dependent_id not found`
       );
     } else {
-      const dependentId = new ObjectId(dependentIdString);
+      const dependentId = dependentIdString;
       const sanitizedForUpdate = await vaultAndSanitize(
         adapter.getPhiVault(),
         resourceType,
@@ -1121,10 +1121,10 @@ export async function createResource(
   }
 
   if (Object.keys(pendingUpdates).length > 0) {
-    await persistence.updateById(resourceId.toHexString(), { set: pendingUpdates });
+    await persistence.updateById(resourceId, { set: pendingUpdates });
     Object.assign(formatted, pendingUpdates);
-    if (pendingUpdates.phi_vault_id instanceof ObjectId) {
-      formatted.phi_vault_id = pendingUpdates.phi_vault_id.toHexString();
+    if (typeof pendingUpdates.phi_vault_id === 'string') {
+      formatted.phi_vault_id = pendingUpdates.phi_vault_id;
     }
   }
 
@@ -1194,7 +1194,7 @@ export async function getResource(adapter: PersistenceAdapter, args: unknown) {
   }
 
   if (resource_type === 'dependent' && formatted.phi_vault_id) {
-    const vaultId = new ObjectId(formatted.phi_vault_id as string);
+    const vaultId = formatted.phi_vault_id as string;
     const vaultEntry = await adapter.getPhiVault().getStructuredPhiVault(vaultId);
     if (vaultEntry) {
       const deidentified = computeDemographics(vaultEntry);
@@ -1204,7 +1204,7 @@ export async function getResource(adapter: PersistenceAdapter, args: unknown) {
 
   // Apply unstructured PHI de-identification to text fields
   if (resourceDef.phiFields && resourceDef.phiFields.length > 0) {
-    const resourceId = new ObjectId(formatted[resourceDef.idField] as string);
+    const resourceId = formatted[resourceDef.idField] as string;
     const unstructuredEntries = await adapter.getPhiVault().getUnstructuredPhiVaultEntries([resourceId]);
     
     if (unstructuredEntries.length > 0) {
@@ -1307,7 +1307,7 @@ export async function updateResource(
     throw new Error(`${resourceDef.name} not found`);
   }
 
-  const resourceIdForVault = new ObjectId(id);
+  const resourceIdForVault = id;
   const pendingUpdates: Record<string, unknown> = { ...updates };
 
   const phiFields = resourceDef.phiFields ?? [];
@@ -1323,7 +1323,7 @@ export async function updateResource(
         `Skipping PHI vaulting for ${resource_type} ${id} - dependent_id not found`
       );
     } else {
-      const dependentIdForVault = new ObjectId(dependentIdForVaultString);
+      const dependentIdForVault = dependentIdForVaultString;
       const sanitizedUpdates = await vaultAndSanitize(
         adapter.getPhiVault(),
         resource_type,
@@ -1339,12 +1339,7 @@ export async function updateResource(
   }
 
   if (resource_type === 'dependent' && dependentPhiPayload) {
-    const existingVaultId =
-      existingRecord.phi_vault_id instanceof ObjectId
-        ? existingRecord.phi_vault_id
-        : typeof existingRecord.phi_vault_id === 'string' && ObjectId.isValid(existingRecord.phi_vault_id)
-        ? new ObjectId(existingRecord.phi_vault_id)
-        : undefined;
+    const existingVaultId = typeof existingRecord.phi_vault_id === 'string' ? existingRecord.phi_vault_id : undefined;
 
     const phiVaultId = await adapter.getPhiVault().upsertStructuredPhiVault(
       resourceIdForVault,
@@ -1373,7 +1368,7 @@ export async function updateResource(
   const formatted = persistence.toExternal(result, resourceDef.idField);
 
   if (resource_type === 'dependent' && formatted.phi_vault_id) {
-    const vaultId = new ObjectId(formatted.phi_vault_id as string);
+    const vaultId = formatted.phi_vault_id as string;
     const vaultEntry = await adapter.getPhiVault().getStructuredPhiVault(vaultId);
     if (vaultEntry) {
       (formatted as any).deidentified_profile = computeDemographics(vaultEntry);
@@ -1519,10 +1514,10 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
     : formattedRecords.filter((record) => !isArchivedRecord(record));
 
   if (resource_type === 'dependent') {
-    const vaultIds: ObjectId[] = [];
+    const vaultIds: string[] = [];
     for (const rec of visibleRecords) {
       if (rec.phi_vault_id) {
-        vaultIds.push(new ObjectId(rec.phi_vault_id as string));
+        vaultIds.push(rec.phi_vault_id as string);
       }
     }
     
@@ -1541,7 +1536,7 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
 
   // Apply unstructured PHI de-identification
   if (resourceDef.phiFields && resourceDef.phiFields.length > 0 && visibleRecords.length > 0) {
-    const resourceIds = visibleRecords.map(r => new ObjectId(r[resourceDef.idField] as string));
+    const resourceIds = visibleRecords.map(r => r[resourceDef.idField] as string);
     const unstructuredEntries = await adapter.getPhiVault().getUnstructuredPhiVaultEntries(resourceIds);
     
     if (unstructuredEntries.length > 0) {

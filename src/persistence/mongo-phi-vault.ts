@@ -12,7 +12,7 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
 
   async upsertPhiEntries(
     entries: Omit<PhiEntry, '_id' | 'created_at' | 'updated_at'>[]
-  ): Promise<ObjectId[]> {
+  ): Promise<string[]> {
     if (entries.length === 0) {
       return [];
     }
@@ -22,8 +22,8 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
     const ids = await Promise.all(
       entries.map(async (entry) => {
         const filter = {
-          dependent_id: entry.dependent_id,
-          resource_id: entry.resource_id,
+          dependent_id: new ObjectId(entry.dependent_id),
+          resource_id: new ObjectId(entry.resource_id),
           field_path: entry.field_path,
           value: entry.value,
           phi_type: entry.phi_type ?? null,
@@ -33,9 +33,9 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
           filter,
           {
             $set: {
-              dependent_id: entry.dependent_id,
+              dependent_id: new ObjectId(entry.dependent_id),
               resource_type: entry.resource_type,
-              resource_id: entry.resource_id,
+              resource_id: new ObjectId(entry.resource_id),
               field_path: entry.field_path,
               value: entry.value,
               phi_type: entry.phi_type ?? null,
@@ -53,7 +53,7 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
 
         const updatedDoc = result?.value;
         if (updatedDoc?._id) {
-          return updatedDoc._id;
+          return updatedDoc._id.toHexString();
         }
 
         const fallback = await this.entriesCollection.findOne(filter, { projection: { _id: 1 } });
@@ -61,30 +61,32 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
           throw new Error('Failed to upsert PHI entry');
         }
 
-        return fallback._id;
+        return (fallback._id as ObjectId).toHexString();
       })
     );
 
     return ids;
   }
 
-  async getUnstructuredPhiVaultEntries(resourceIds: ObjectId[]): Promise<PhiEntry[]> {
+  async getUnstructuredPhiVaultEntries(resourceIds: string[]): Promise<PhiEntry[]> {
     if (resourceIds.length === 0) {
       return [];
     }
-    return this.entriesCollection.find({ resource_id: { $in: resourceIds } }).toArray();
+    const objectIds = resourceIds.map(id => new ObjectId(id));
+    return this.entriesCollection.find({ resource_id: { $in: objectIds } }).toArray();
   }
 
   async upsertStructuredPhiVault(
-    dependentId: ObjectId,
+    dependentId: string,
     phiPayload: Record<string, unknown>,
-    existingVaultId?: ObjectId
-  ): Promise<ObjectId> {
+    existingVaultId?: string
+  ): Promise<string> {
     const now = new Date();
 
     if (existingVaultId) {
+      const vaultObjectId = new ObjectId(existingVaultId);
       await this.vaultCollection.updateOne(
-        { _id: existingVaultId },
+        { _id: vaultObjectId },
         {
           $set: {
             ...phiPayload,
@@ -96,8 +98,9 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
       return existingVaultId;
     }
 
+    const depObjectId = new ObjectId(dependentId);
     const existing = await this.vaultCollection.findOne(
-      { dependent_id: dependentId },
+      { dependent_id: depObjectId },
       { projection: { _id: 1 } }
     );
 
@@ -112,11 +115,11 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
           },
         }
       );
-      return existing._id as ObjectId;
+      return (existing._id as ObjectId).toHexString();
     }
 
     const insertResult = await this.vaultCollection.insertOne({
-      dependent_id: dependentId,
+      dependent_id: depObjectId,
       ...phiPayload,
       created_at: now,
       updated_at: now,
@@ -124,18 +127,19 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
       updated_by: 'mcp',
     });
 
-    return insertResult.insertedId;
+    return insertResult.insertedId.toHexString();
   }
 
-  async getStructuredPhiVault(vaultId: ObjectId): Promise<PhiVaultEntry | null> {
-    return this.vaultCollection.findOne({ _id: vaultId });
+  async getStructuredPhiVault(vaultId: string): Promise<PhiVaultEntry | null> {
+    return this.vaultCollection.findOne({ _id: new ObjectId(vaultId) });
   }
 
-  async getStructuredPhiVaults(vaultIds: ObjectId[]): Promise<Map<string, PhiVaultEntry>> {
+  async getStructuredPhiVaults(vaultIds: string[]): Promise<Map<string, PhiVaultEntry>> {
     if (vaultIds.length === 0) {
       return new Map();
     }
-    const entries = await this.vaultCollection.find({ _id: { $in: vaultIds } }).toArray();
+    const objectIds = vaultIds.map(id => new ObjectId(id));
+    const entries = await this.vaultCollection.find({ _id: { $in: objectIds } }).toArray();
     
     const map = new Map<string, PhiVaultEntry>();
     for (const entry of entries) {
@@ -146,7 +150,7 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
     return map;
   }
 
-  async getStructuredPhiVaultByDependentId(dependentId: ObjectId): Promise<PhiVaultEntry | null> {
-    return this.vaultCollection.findOne({ dependent_id: dependentId });
+  async getStructuredPhiVaultByDependentId(dependentId: string): Promise<PhiVaultEntry | null> {
+    return this.vaultCollection.findOne({ dependent_id: new ObjectId(dependentId) });
   }
 }

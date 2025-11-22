@@ -38,49 +38,49 @@ class MockPhiVaultAdapter implements PhiVaultAdapter {
   storedEntries: any[] = [];
   storedVaults: Map<string, any> = new Map();
 
-  async upsertPhiEntries(entries: any[]): Promise<ObjectId[]> {
-    const ids: ObjectId[] = [];
+  async upsertPhiEntries(entries: any[]): Promise<string[]> {
+    const ids: string[] = [];
     for (const entry of entries) {
       this.storedEntries.push(entry);
-      ids.push(new ObjectId());
+      ids.push(new ObjectId().toHexString());
     }
     return ids;
   }
 
-  async getUnstructuredPhiVaultEntries(resourceIds: ObjectId[]): Promise<any[]> {
+  async getUnstructuredPhiVaultEntries(resourceIds: string[]): Promise<any[]> {
     // Simplified mock filtering
-    const ids = resourceIds.map(id => id.toHexString());
-    return this.storedEntries.filter(e => ids.includes(e.resource_id.toHexString()));
+    const ids = resourceIds;
+    return this.storedEntries.filter(e => ids.includes(typeof e.resource_id === 'string' ? e.resource_id : e.resource_id.toHexString()));
   }
 
   async upsertStructuredPhiVault(
-    dependentId: ObjectId,
+    dependentId: string,
     phiPayload: Record<string, unknown>,
-    existingVaultId?: ObjectId
-  ): Promise<ObjectId> {
-    const id = existingVaultId ?? new ObjectId();
-    this.storedVaults.set(id.toHexString(), { _id: id, dependent_id: dependentId, ...phiPayload });
+    existingVaultId?: string
+  ): Promise<string> {
+    const id = existingVaultId ?? new ObjectId().toHexString();
+    this.storedVaults.set(id, { _id: new ObjectId(id), dependent_id: new ObjectId(dependentId), ...phiPayload });
     return id;
   }
 
-  async getStructuredPhiVault(vaultId: ObjectId): Promise<PhiVaultEntry | null> {
-    return this.storedVaults.get(vaultId.toHexString()) || null;
+  async getStructuredPhiVault(vaultId: string): Promise<PhiVaultEntry | null> {
+    return this.storedVaults.get(vaultId) || null;
   }
 
-  async getStructuredPhiVaults(vaultIds: ObjectId[]): Promise<Map<string, PhiVaultEntry>> {
+  async getStructuredPhiVaults(vaultIds: string[]): Promise<Map<string, PhiVaultEntry>> {
     const result = new Map<string, PhiVaultEntry>();
     for (const id of vaultIds) {
-      const entry = this.storedVaults.get(id.toHexString());
+      const entry = this.storedVaults.get(id);
       if (entry) {
-        result.set(id.toHexString(), entry);
+        result.set(id, entry);
       }
     }
     return result;
   }
 
-  async getStructuredPhiVaultByDependentId(dependentId: ObjectId): Promise<PhiVaultEntry | null> {
+  async getStructuredPhiVaultByDependentId(dependentId: string): Promise<PhiVaultEntry | null> {
     for (const entry of this.storedVaults.values()) {
-      if (entry.dependent_id.toHexString() === dependentId.toHexString()) {
+      if (entry.dependent_id.toHexString() === dependentId) {
         return entry;
       }
     }
@@ -94,8 +94,8 @@ class MockPhiVaultAdapter implements PhiVaultAdapter {
 
 describe('PHI Protection & Vaulting', () => {
   let adapter: MockPhiVaultAdapter;
-  const dependentId = new ObjectId();
-  const resourceId = new ObjectId();
+  const dependentId = new ObjectId().toHexString();
+  const resourceId = new ObjectId().toHexString();
 
   beforeEach(() => {
     adapter = new MockPhiVaultAdapter();
@@ -106,7 +106,8 @@ describe('PHI Protection & Vaulting', () => {
     vault._deps.analyzeText = originalAnalyzeText;
   });
 
-  it('should vault and redact patient name', async () => {
+  it('should vault and redact patient name (Regression Test for String IDs)', async () => {
+    // Ensure that we can pass string IDs without errors
     const payload = {
       note: "Patient John Doe arrived for checkup."
     };
@@ -130,6 +131,10 @@ describe('PHI Protection & Vaulting', () => {
     const entry = adapter.storedEntries.find(e => e.value === 'John Doe');
     assert.ok(entry, 'John Doe should be stored in vault');
     assert.strictEqual(entry.phi_type, 'PERSON');
+    
+    // Verify stored entry has IDs stored correctly (implementation dependent, but Mock stores as passed)
+    assert.strictEqual(entry.resource_id, resourceId, 'Resource ID should be preserved');
+    assert.strictEqual(entry.dependent_id, dependentId, 'Dependent ID should be preserved');
   });
 
   it('should strictly enforce known identifiers (Person)', async () => {

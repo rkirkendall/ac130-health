@@ -7,10 +7,10 @@ export { PhiVaultEntry };
  * Represents a single piece of Protected Health Information (PHI).
  */
 export interface PhiEntry {
-  _id?: ObjectId;
-  dependent_id: ObjectId;
+  _id?: string | ObjectId;
+  dependent_id: string | ObjectId;
   resource_type: string; // The resource type this PHI belongs to (e.g. 'condition')
-  resource_id: ObjectId; // The ID of the resource instance
+  resource_id: string | ObjectId; // The ID of the resource instance
   field_path: string; // e.g., 'notes' or 'procedure.description'
   value: any;
   phi_type?: string | null; // e.g., 'FULL_NAME', 'DATE', 'PHONE_NUMBER'
@@ -27,8 +27,8 @@ export interface DetectedPhi {
 
 /**
  * An adapter for storing and retrieving PHI from a secure vault.
- * This interface is persistence-agnostic (except for ObjectId which is currently used as a universal ID type in core).
- * Note: In a pure abstraction, ObjectId should be generic or string, but for now we maintain compat with core types.
+ * This interface is persistence-agnostic. IDs are passed as strings at the boundary.
+ * Persistence implementations handle conversion to native ID types (e.g. ObjectId) if needed.
  */
 export interface PhiVaultAdapter {
   /**
@@ -36,36 +36,36 @@ export interface PhiVaultAdapter {
    */
   upsertPhiEntries(
     entries: Omit<PhiEntry, '_id' | 'created_at' | 'updated_at'>[]
-  ): Promise<ObjectId[]>;
+  ): Promise<string[]>;
 
   /**
    * Retrieves unstructured PHI entries for specific resources.
    * Used for de-identification.
    */
-  getUnstructuredPhiVaultEntries(resourceIds: ObjectId[]): Promise<PhiEntry[]>;
+  getUnstructuredPhiVaultEntries(resourceIds: string[]): Promise<PhiEntry[]>;
 
   /**
    * Upserts a structured PHI vault entry (for a dependent profile).
    */
   upsertStructuredPhiVault(
-    dependentId: ObjectId,
+    dependentId: string,
     phiPayload: Record<string, unknown>,
-    existingVaultId?: ObjectId
-  ): Promise<ObjectId>;
+    existingVaultId?: string
+  ): Promise<string>;
 
   /**
    * Retrieves a structured PHI vault entry by its Vault ID.
    */
-  getStructuredPhiVault(vaultId: ObjectId): Promise<PhiVaultEntry | null>;
+  getStructuredPhiVault(vaultId: string): Promise<PhiVaultEntry | null>;
 
   /**
    * Retrieves multiple structured PHI vault entries by their Vault IDs.
    * Returns a Map keyed by Vault ID string.
    */
-  getStructuredPhiVaults(vaultIds: ObjectId[]): Promise<Map<string, PhiVaultEntry>>;
+  getStructuredPhiVaults(vaultIds: string[]): Promise<Map<string, PhiVaultEntry>>;
 
   /**
    * Retrieves a structured PHI vault entry by the Dependent ID.
    */
-  getStructuredPhiVaultByDependentId(dependentId: ObjectId): Promise<PhiVaultEntry | null>;
+  getStructuredPhiVaultByDependentId(dependentId: string): Promise<PhiVaultEntry | null>;
 }

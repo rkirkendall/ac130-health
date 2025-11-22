@@ -8,9 +8,9 @@ export const _deps = {
   analyzeText: defaultAnalyzeText
 };
 
-export function generatePhiReference(vaultId: ObjectId, type?: string): string {
+export function generatePhiReference(vaultId: string, type?: string): string {
   const typePart = type ? `:${type}` : '';
-  return `phi:vault${typePart}:${vaultId.toHexString()}`;
+  return `phi:vault${typePart}:${vaultId}`;
 }
 
 function dedupeAnalyzerResults(results: PresidioRecognizerResult[]): PresidioRecognizerResult[] {
@@ -117,8 +117,8 @@ function manualSanitize(
 export async function vaultAndSanitizeFields(
   vaultAdapter: PhiVaultAdapter,
   resourceType: string,
-  resourceId: ObjectId,
-  dependentId: ObjectId,
+  resourceId: string,
+  dependentId: string,
   payload: Record<string, any>,
   phiFields: { path: string; strategy: 'whole-field' | 'substring' }[],
   knownIdentifiers?: string[]
@@ -212,8 +212,8 @@ export async function vaultAndSanitizeFields(
 export async function vaultAndSanitize(
   vaultAdapter: PhiVaultAdapter,
   resourceType: string,
-  resourceId: ObjectId,
-  dependentId: ObjectId,
+  resourceId: string,
+  dependentId: string,
   payload: Record<string, any>,
   knownIdentifiers?: string[]
 ): Promise<Record<string, any>> {

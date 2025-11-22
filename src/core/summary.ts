@@ -63,11 +63,15 @@ export async function updateHealthSummary(
   };
 
   let vaultEntry = null;
-  const dependentPhiVaultId = resolveObjectId((dependent as any)?.phi_vault_id);
-  if (dependentPhiVaultId) {
-    vaultEntry = await vaultAdapter.getStructuredPhiVault(dependentPhiVaultId);
+  // Resolve vault ID to string if possible
+  const dependentPhiVaultIdString = typeof (dependent as any)?.phi_vault_id === 'string' 
+    ? (dependent as any).phi_vault_id 
+    : (dependent as any)?.phi_vault_id?.toHexString?.();
+
+  if (dependentPhiVaultIdString) {
+    vaultEntry = await vaultAdapter.getStructuredPhiVault(dependentPhiVaultIdString);
   } else {
-    vaultEntry = await vaultAdapter.getStructuredPhiVaultByDependentId(dependentId);
+    vaultEntry = await vaultAdapter.getStructuredPhiVaultByDependentId(validated.dependent_id);
   }
 
   if (vaultEntry) {
@@ -89,8 +93,8 @@ export async function updateHealthSummary(
   const sanitizedPayload = await vaultAndSanitizeFields(
     vaultAdapter,
     'health_summary',
-    summaryId,
-    dependentId,
+    summaryId.toHexString(),
+    validated.dependent_id,
     payload,
     [{ path: 'summary_text', strategy: 'substring' }],
     knownIdentifiers
