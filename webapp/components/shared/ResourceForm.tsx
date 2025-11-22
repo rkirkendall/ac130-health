@@ -109,7 +109,7 @@ const RESOURCE_FORM_FIELDS: Record<string, FormField[]> = {
     { name: 'result_unit', label: 'Unit', type: 'text', placeholder: 'e.g., mg/dL' },
   ],
   conditions: [
-    { name: 'condition_name', label: 'Condition Name', type: 'text', required: true, placeholder: 'e.g., Hypertension' },
+    { name: 'name', label: 'Condition Name', type: 'text', required: true, placeholder: 'e.g., Hypertension' },
     { name: 'diagnosis_date', label: 'Diagnosis Date', type: 'date', placeholder: 'YYYY-MM-DD' },
     {
       name: 'status',
@@ -172,7 +172,7 @@ const RESOURCE_FORM_FIELDS: Record<string, FormField[]> = {
     { name: 'impression', label: 'Impression', type: 'textarea', placeholder: 'Radiologist impression' },
   ],
   treatments: [
-    { name: 'treatment_name', label: 'Treatment Name', type: 'text', required: true, placeholder: 'e.g., Physical Therapy' },
+    { name: 'title', label: 'Treatment Name', type: 'text', required: true, placeholder: 'e.g., Physical Therapy' },
     { name: 'start_date', label: 'Start Date', type: 'date', placeholder: 'YYYY-MM-DD' },
     { name: 'end_date', label: 'End Date', type: 'date', placeholder: 'YYYY-MM-DD' },
     {

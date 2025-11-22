@@ -3,10 +3,6 @@ import type { PersistenceAdapter } from './persistence.js';
 import type { PhiVaultAdapter } from './phi/types.js';
 import { vaultAndSanitizeFields } from './phi/vault.js';
 import { ObjectId } from 'mongodb';
-import {
-  getStructuredPhiVault,
-  getStructuredPhiVaultByDependentId,
-} from './phi/dependent.js';
 
 export async function updateHealthSummary(
   adapter: PersistenceAdapter,
@@ -58,34 +54,31 @@ export async function updateHealthSummary(
   }
 
   // Augment identifiers with structured PHI (legal name, preferred name, etc.)
-  const db = typeof adapter.getDb === 'function' ? adapter.getDb() : null;
-  if (db) {
-    const resolveObjectId = (value: unknown): ObjectId | null => {
-      if (value instanceof ObjectId) return value;
-      if (typeof value === 'string' && ObjectId.isValid(value)) {
-        return new ObjectId(value);
-      }
-      return null;
-    };
-
-    let vaultEntry = null;
-    const dependentPhiVaultId = resolveObjectId((dependent as any)?.phi_vault_id);
-    if (dependentPhiVaultId) {
-      vaultEntry = await getStructuredPhiVault(db, dependentPhiVaultId);
-    } else {
-      vaultEntry = await getStructuredPhiVaultByDependentId(db, dependentId);
+  const resolveObjectId = (value: unknown): ObjectId | null => {
+    if (value instanceof ObjectId) return value;
+    if (typeof value === 'string' && ObjectId.isValid(value)) {
+      return new ObjectId(value);
     }
+    return null;
+  };
 
-    if (vaultEntry) {
-      if (vaultEntry.legal_name?.given) addIdentifier(vaultEntry.legal_name.given);
-      if (vaultEntry.legal_name?.family) addIdentifier(vaultEntry.legal_name.family);
-      if (vaultEntry.preferred_name) addIdentifier(vaultEntry.preferred_name);
-      if (
-        vaultEntry.legal_name?.given &&
-        vaultEntry.legal_name?.family
-      ) {
-        addIdentifier(`${vaultEntry.legal_name.given} ${vaultEntry.legal_name.family}`);
-      }
+  let vaultEntry = null;
+  const dependentPhiVaultId = resolveObjectId((dependent as any)?.phi_vault_id);
+  if (dependentPhiVaultId) {
+    vaultEntry = await vaultAdapter.getStructuredPhiVault(dependentPhiVaultId);
+  } else {
+    vaultEntry = await vaultAdapter.getStructuredPhiVaultByDependentId(dependentId);
+  }
+
+  if (vaultEntry) {
+    if (vaultEntry.legal_name?.given) addIdentifier(vaultEntry.legal_name.given);
+    if (vaultEntry.legal_name?.family) addIdentifier(vaultEntry.legal_name.family);
+    if (vaultEntry.preferred_name) addIdentifier(vaultEntry.preferred_name);
+    if (
+      vaultEntry.legal_name?.given &&
+      vaultEntry.legal_name?.family
+    ) {
+      addIdentifier(`${vaultEntry.legal_name.given} ${vaultEntry.legal_name.family}`);
     }
   }
 
@@ -158,4 +151,3 @@ export async function getHealthSummary(adapter: PersistenceAdapter, dependentId:
 
   return summaryText;
 }
-

@@ -5,7 +5,9 @@ import type {
   ResourcePersistence,
   UpdateOperations,
   UpdateOptions,
-} from './types.js';
+} from '../core/persistence.js';
+import { PhiVaultAdapter } from '../core/phi/types.js';
+import { MongoPhiVaultAdapter } from './mongo-phi-vault.js';
 
 const OBJECT_ID_FIELDS = new Set<string>([
   '_id',
@@ -302,17 +304,22 @@ export class MongoResourcePersistence implements ResourcePersistence {
 
 export class MongoPersistenceAdapter implements PersistenceAdapter {
   private db: Db;
+  private phiVault: PhiVaultAdapter;
 
   constructor(db: Db) {
     this.db = db;
+    this.phiVault = new MongoPhiVaultAdapter(db);
   }
 
   forCollection(collectionName: string): ResourcePersistence {
     return new MongoResourcePersistence(this.db.collection(collectionName));
   }
 
+  getPhiVault(): PhiVaultAdapter {
+    return this.phiVault;
+  }
+
   getDb(): Db {
     return this.db;
   }
 }
-

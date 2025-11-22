@@ -2,7 +2,7 @@ import { test, describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { ObjectId } from 'mongodb';
 import * as vault from '../core/phi/vault.js';
-import { PhiVaultAdapter } from '../core/phi/types.js';
+import { PhiVaultAdapter, PhiVaultEntry } from '../core/phi/types.js';
 
 const originalAnalyzeText = vault._deps.analyzeText;
 
@@ -36,6 +36,7 @@ const mockAnalyzeText = async (text: string) => {
 // Mock Adapter
 class MockPhiVaultAdapter implements PhiVaultAdapter {
   storedEntries: any[] = [];
+  storedVaults: Map<string, any> = new Map();
 
   async upsertPhiEntries(entries: any[]): Promise<ObjectId[]> {
     const ids: ObjectId[] = [];
@@ -44,6 +45,46 @@ class MockPhiVaultAdapter implements PhiVaultAdapter {
       ids.push(new ObjectId());
     }
     return ids;
+  }
+
+  async getUnstructuredPhiVaultEntries(resourceIds: ObjectId[]): Promise<any[]> {
+    // Simplified mock filtering
+    const ids = resourceIds.map(id => id.toHexString());
+    return this.storedEntries.filter(e => ids.includes(e.resource_id.toHexString()));
+  }
+
+  async upsertStructuredPhiVault(
+    dependentId: ObjectId,
+    phiPayload: Record<string, unknown>,
+    existingVaultId?: ObjectId
+  ): Promise<ObjectId> {
+    const id = existingVaultId ?? new ObjectId();
+    this.storedVaults.set(id.toHexString(), { _id: id, dependent_id: dependentId, ...phiPayload });
+    return id;
+  }
+
+  async getStructuredPhiVault(vaultId: ObjectId): Promise<PhiVaultEntry | null> {
+    return this.storedVaults.get(vaultId.toHexString()) || null;
+  }
+
+  async getStructuredPhiVaults(vaultIds: ObjectId[]): Promise<Map<string, PhiVaultEntry>> {
+    const result = new Map<string, PhiVaultEntry>();
+    for (const id of vaultIds) {
+      const entry = this.storedVaults.get(id.toHexString());
+      if (entry) {
+        result.set(id.toHexString(), entry);
+      }
+    }
+    return result;
+  }
+
+  async getStructuredPhiVaultByDependentId(dependentId: ObjectId): Promise<PhiVaultEntry | null> {
+    for (const entry of this.storedVaults.values()) {
+      if (entry.dependent_id.toHexString() === dependentId.toHexString()) {
+        return entry;
+      }
+    }
+    return null;
   }
 
   async findPhiEntries(criteria: any) {

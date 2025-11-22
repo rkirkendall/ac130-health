@@ -8,15 +8,10 @@ import {
   detectPhi,
   vaultAndSanitize,
 } from './phi/index.js';
-import { MongoPhiVaultAdapter } from '../persistence/mongo-phi-vault.js';
 import { ObjectId } from 'mongodb';
 import isEqual from 'lodash/isEqual.js';
 import { 
-  separatePhiPayload, 
-  upsertStructuredPhiVault, 
-  getStructuredPhiVault,
-  getStructuredPhiVaults,
-  getUnstructuredPhiVaultEntries
+  separatePhiPayload
 } from './phi/dependent.js';
 import { computeDemographics, deidentifyString } from './phi/deidentify.js';
 
@@ -1091,14 +1086,11 @@ export async function createResource(
   const pendingUpdates: Record<string, unknown> = {};
 
   if (resourceType === 'dependent' && dependentPhiPayload) {
-    if (typeof adapter.getDb === 'function') {
-      const phiVaultId = await upsertStructuredPhiVault(
-        adapter.getDb(),
-        resourceId,
-        dependentPhiPayload
-      );
-      pendingUpdates.phi_vault_id = phiVaultId;
-    }
+    const phiVaultId = await adapter.getPhiVault().upsertStructuredPhiVault(
+      resourceId,
+      dependentPhiPayload
+    );
+    pendingUpdates.phi_vault_id = phiVaultId;
     
     // Compute and inject de-identified profile
     const deidentified = computeDemographics(dependentPhiPayload as any);
@@ -1114,18 +1106,16 @@ export async function createResource(
       );
     } else {
       const dependentId = new ObjectId(dependentIdString);
-      if (typeof adapter.getDb === 'function') {
-        const sanitizedForUpdate = await vaultAndSanitize(
-          new MongoPhiVaultAdapter(adapter.getDb()),
-          resourceType,
-          resourceId,
-          dependentId,
-          normalizedData
-        );
+      const sanitizedForUpdate = await vaultAndSanitize(
+        adapter.getPhiVault(),
+        resourceType,
+        resourceId,
+        dependentId,
+        normalizedData
+      );
 
-        if (!isEqual(sanitizedForUpdate, normalizedData)) {
-          Object.assign(pendingUpdates, sanitizedForUpdate);
-        }
+      if (!isEqual(sanitizedForUpdate, normalizedData)) {
+        Object.assign(pendingUpdates, sanitizedForUpdate);
       }
     }
   }
@@ -1203,11 +1193,9 @@ export async function getResource(adapter: PersistenceAdapter, args: unknown) {
     throw new Error(`${resourceDef.name} not found`);
   }
 
-  const db = typeof adapter.getDb === 'function' ? adapter.getDb() : null;
-
-  if (resource_type === 'dependent' && formatted.phi_vault_id && db) {
+  if (resource_type === 'dependent' && formatted.phi_vault_id) {
     const vaultId = new ObjectId(formatted.phi_vault_id as string);
-    const vaultEntry = await getStructuredPhiVault(db, vaultId);
+    const vaultEntry = await adapter.getPhiVault().getStructuredPhiVault(vaultId);
     if (vaultEntry) {
       const deidentified = computeDemographics(vaultEntry);
       (formatted as any).deidentified_profile = deidentified;
@@ -1215,9 +1203,9 @@ export async function getResource(adapter: PersistenceAdapter, args: unknown) {
   }
 
   // Apply unstructured PHI de-identification to text fields
-  if (db && resourceDef.phiFields && resourceDef.phiFields.length > 0) {
+  if (resourceDef.phiFields && resourceDef.phiFields.length > 0) {
     const resourceId = new ObjectId(formatted[resourceDef.idField] as string);
-    const unstructuredEntries = await getUnstructuredPhiVaultEntries(db, [resourceId]);
+    const unstructuredEntries = await adapter.getPhiVault().getUnstructuredPhiVaultEntries([resourceId]);
     
     if (unstructuredEntries.length > 0) {
       // We only need to check fields that are strings and might contain tokens
@@ -1336,39 +1324,34 @@ export async function updateResource(
       );
     } else {
       const dependentIdForVault = new ObjectId(dependentIdForVaultString);
-      if (typeof adapter.getDb === 'function') {
-        const sanitizedUpdates = await vaultAndSanitize(
-          new MongoPhiVaultAdapter(adapter.getDb()),
-          resource_type,
-          resourceIdForVault,
-          dependentIdForVault,
-          updates
-        );
+      const sanitizedUpdates = await vaultAndSanitize(
+        adapter.getPhiVault(),
+        resource_type,
+        resourceIdForVault,
+        dependentIdForVault,
+        updates
+      );
 
-        if (!isEqual(sanitizedUpdates, updates)) {
-          Object.assign(pendingUpdates, sanitizedUpdates);
-        }
+      if (!isEqual(sanitizedUpdates, updates)) {
+        Object.assign(pendingUpdates, sanitizedUpdates);
       }
     }
   }
 
   if (resource_type === 'dependent' && dependentPhiPayload) {
-    if (typeof adapter.getDb === 'function') {
-      const existingVaultId =
-        existingRecord.phi_vault_id instanceof ObjectId
-          ? existingRecord.phi_vault_id
-          : typeof existingRecord.phi_vault_id === 'string' && ObjectId.isValid(existingRecord.phi_vault_id)
-          ? new ObjectId(existingRecord.phi_vault_id)
-          : undefined;
+    const existingVaultId =
+      existingRecord.phi_vault_id instanceof ObjectId
+        ? existingRecord.phi_vault_id
+        : typeof existingRecord.phi_vault_id === 'string' && ObjectId.isValid(existingRecord.phi_vault_id)
+        ? new ObjectId(existingRecord.phi_vault_id)
+        : undefined;
 
-      const phiVaultId = await upsertStructuredPhiVault(
-        adapter.getDb(),
-        resourceIdForVault,
-        dependentPhiPayload,
-        existingVaultId
-      );
-      pendingUpdates.phi_vault_id = phiVaultId;
-    }
+    const phiVaultId = await adapter.getPhiVault().upsertStructuredPhiVault(
+      resourceIdForVault,
+      dependentPhiPayload,
+      existingVaultId
+    );
+    pendingUpdates.phi_vault_id = phiVaultId;
   }
 
   const result = await persistence.updateById(
@@ -1390,13 +1373,10 @@ export async function updateResource(
   const formatted = persistence.toExternal(result, resourceDef.idField);
 
   if (resource_type === 'dependent' && formatted.phi_vault_id) {
-    if (typeof adapter.getDb === 'function') {
-      const db = adapter.getDb();
-      const vaultId = new ObjectId(formatted.phi_vault_id as string);
-      const vaultEntry = await getStructuredPhiVault(db, vaultId);
-      if (vaultEntry) {
-        (formatted as any).deidentified_profile = computeDemographics(vaultEntry);
-      }
+    const vaultId = new ObjectId(formatted.phi_vault_id as string);
+    const vaultEntry = await adapter.getPhiVault().getStructuredPhiVault(vaultId);
+    if (vaultEntry) {
+      (formatted as any).deidentified_profile = computeDemographics(vaultEntry);
     }
   }
 
@@ -1538,9 +1518,7 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
     ? formattedRecords
     : formattedRecords.filter((record) => !isArchivedRecord(record));
 
-  const db = typeof adapter.getDb === 'function' ? adapter.getDb() : null;
-
-  if (resource_type === 'dependent' && db) {
+  if (resource_type === 'dependent') {
     const vaultIds: ObjectId[] = [];
     for (const rec of visibleRecords) {
       if (rec.phi_vault_id) {
@@ -1549,7 +1527,7 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
     }
     
     if (vaultIds.length > 0) {
-      const vaultsMap = await getStructuredPhiVaults(db, vaultIds);
+      const vaultsMap = await adapter.getPhiVault().getStructuredPhiVaults(vaultIds);
       for (const rec of visibleRecords) {
         if (rec.phi_vault_id) {
            const vaultEntry = vaultsMap.get(rec.phi_vault_id as string);
@@ -1562,9 +1540,9 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
   }
 
   // Apply unstructured PHI de-identification
-  if (db && resourceDef.phiFields && resourceDef.phiFields.length > 0 && visibleRecords.length > 0) {
+  if (resourceDef.phiFields && resourceDef.phiFields.length > 0 && visibleRecords.length > 0) {
     const resourceIds = visibleRecords.map(r => new ObjectId(r[resourceDef.idField] as string));
-    const unstructuredEntries = await getUnstructuredPhiVaultEntries(db, resourceIds);
+    const unstructuredEntries = await adapter.getPhiVault().getUnstructuredPhiVaultEntries(resourceIds);
     
     if (unstructuredEntries.length > 0) {
       // Optimization: Check if any record string contains 'phi:vault:' before processing

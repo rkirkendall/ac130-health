@@ -1,4 +1,4 @@
-import { Db } from 'mongodb';
+import { PhiVaultAdapter } from './phi/types.js';
 
 export type Query = Record<string, unknown>;
 
@@ -29,6 +29,7 @@ export interface ResourcePersistence {
 
 export interface PersistenceAdapter {
   forCollection(collectionName: string): ResourcePersistence;
-  getDb(): Db;
+  getPhiVault(): PhiVaultAdapter;
+  // Legacy accessor for MongoDB-specific operations, optional
+  getDb?(): any;
 }
-

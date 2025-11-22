@@ -32,5 +32,3 @@ export function deleteResource(db: Database, args: unknown) {
 export function listResource(db: Database, args: unknown) {
   return sharedListResource(getAdapter(db), args);
 }
-
-

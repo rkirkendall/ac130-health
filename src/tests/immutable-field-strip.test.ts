@@ -42,6 +42,15 @@ function createStubPersistence(
   };
 }
 
+const mockPhiVault = {
+  upsertPhiEntries: mock.fn(async () => []),
+  getUnstructuredPhiVaultEntries: mock.fn(async () => []),
+  upsertStructuredPhiVault: mock.fn(async () => new ObjectId()),
+  getStructuredPhiVault: mock.fn(async () => null),
+  getStructuredPhiVaults: mock.fn(async () => new Map()),
+  getStructuredPhiVaultByDependentId: mock.fn(async () => null),
+};
+
 describe('updateResource immutable field stripping', () => {
   it('should strip immutable fields from update data', async () => {
     const resourceType = 'visit';
@@ -105,6 +114,7 @@ describe('updateResource immutable field stripping', () => {
         }
       },
       getDb: () => ({}) as any,
+      getPhiVault: () => mockPhiVault as any,
     };
 
     const updateData = {
