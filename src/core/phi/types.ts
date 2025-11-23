@@ -7,10 +7,10 @@ export { PhiVaultEntry };
  * Represents a single piece of Protected Health Information (PHI).
  */
 export interface PhiEntry {
-  _id?: string | ObjectId;
-  dependent_id: string | ObjectId;
+  _id?: string;
+  dependent_id: string;
   resource_type: string; // The resource type this PHI belongs to (e.g. 'condition')
-  resource_id: string | ObjectId; // The ID of the resource instance
+  resource_id: string; // The ID of the resource instance
   field_path: string; // e.g., 'notes' or 'procedure.description'
   value: any;
   phi_type?: string | null; // e.g., 'FULL_NAME', 'DATE', 'PHONE_NUMBER'

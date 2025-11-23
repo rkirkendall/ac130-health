@@ -1,4 +1,3 @@
-import { ObjectId } from 'mongodb';
 import { DetectedPhi, PhiEntry, PhiVaultAdapter } from './types.js';
 import { getResourceDefinition } from '../resource-registry.js';
 import { analyzeText as defaultAnalyzeText, PresidioRecognizerResult } from './presidio.js';

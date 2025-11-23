@@ -94,10 +94,7 @@ export function deidentifyString(text: string, entries: PhiEntry[]): string {
   const tokenRegex = /phi:vault(?::([A-Z_]+))?:([a-f0-9]{24})/g;
 
   return text.replace(tokenRegex, (match, type, id) => {
-    const entry = entries.find(e => {
-        const entryId = typeof e._id === 'string' ? e._id : e._id?.toHexString();
-        return entryId === id;
-    });
+    const entry = entries.find(e => e._id === id);
     if (entry) {
       return deidentifyValue(entry.value, entry.phi_type || type);
     }

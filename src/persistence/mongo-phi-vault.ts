@@ -73,7 +73,13 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
       return [];
     }
     const objectIds = resourceIds.map(id => new ObjectId(id));
-    return this.entriesCollection.find({ resource_id: { $in: objectIds } }).toArray();
+    const entries = await this.entriesCollection.find({ resource_id: { $in: objectIds } }).toArray();
+    return entries.map(entry => ({
+      ...entry,
+      _id: entry._id ? (entry._id as ObjectId).toHexString() : undefined,
+      dependent_id: (entry.dependent_id as any).toHexString(),
+      resource_id: (entry.resource_id as any).toHexString(),
+    }));
   }
 
   async upsertStructuredPhiVault(
@@ -131,7 +137,13 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
   }
 
   async getStructuredPhiVault(vaultId: string): Promise<PhiVaultEntry | null> {
-    return this.vaultCollection.findOne({ _id: new ObjectId(vaultId) });
+    const entry = await this.vaultCollection.findOne({ _id: new ObjectId(vaultId) });
+    if (!entry) return null;
+    return {
+      ...entry,
+      _id: entry._id ? (entry._id as ObjectId).toHexString() : undefined,
+      dependent_id: (entry.dependent_id as any).toHexString(),
+    } as any;
   }
 
   async getStructuredPhiVaults(vaultIds: string[]): Promise<Map<string, PhiVaultEntry>> {
@@ -144,13 +156,24 @@ export class MongoPhiVaultAdapter implements PhiVaultAdapter {
     const map = new Map<string, PhiVaultEntry>();
     for (const entry of entries) {
       if (entry._id) {
-        map.set(entry._id.toHexString(), entry);
+        const entryId = entry._id.toHexString();
+        map.set(entryId, {
+          ...entry,
+          _id: entryId,
+          dependent_id: (entry.dependent_id as any).toHexString(),
+        } as any);
       }
     }
     return map;
   }
 
   async getStructuredPhiVaultByDependentId(dependentId: string): Promise<PhiVaultEntry | null> {
-    return this.vaultCollection.findOne({ dependent_id: new ObjectId(dependentId) });
+    const entry = await this.vaultCollection.findOne({ dependent_id: new ObjectId(dependentId) });
+    if (!entry) return null;
+    return {
+      ...entry,
+      _id: entry._id ? (entry._id as ObjectId).toHexString() : undefined,
+      dependent_id: (entry.dependent_id as any).toHexString(),
+    } as any;
   }
 }
