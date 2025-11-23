@@ -2,12 +2,12 @@ import { Collection, Db, ObjectId } from 'mongodb';
 import { PhiEntry, PhiVaultAdapter, PhiVaultEntry } from '../core/phi/types.js';
 
 export class MongoPhiVaultAdapter implements PhiVaultAdapter {
-  private readonly entriesCollection: Collection<PhiEntry>;
-  private readonly vaultCollection: Collection<PhiVaultEntry>;
+  private readonly entriesCollection: Collection<any>; // Using any for internal collection to handle ObjectId mismatch
+  private readonly vaultCollection: Collection<any>; // Using any for internal collection to handle ObjectId mismatch
 
   constructor(db: Db) {
-    this.entriesCollection = db.collection<PhiEntry>('phi_vault_entries');
-    this.vaultCollection = db.collection<PhiVaultEntry>('phi_vault');
+    this.entriesCollection = db.collection('phi_vault_entries');
+    this.vaultCollection = db.collection('phi_vault');
   }
 
   async upsertPhiEntries(
