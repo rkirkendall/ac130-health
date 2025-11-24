@@ -375,6 +375,7 @@ const ListResourceSchema = z.object({
   resource_type: z.string(),
   filters: z.any().optional(), // Can be object or JSON string
   limit: z.number().optional(),
+  cursor: z.string().optional(),
 });
 
 export type HealthSummaryAction = 'create' | 'update';
@@ -1624,7 +1625,7 @@ export async function deleteResource(adapter: PersistenceAdapter, args: unknown)
 
 export async function listResource(adapter: PersistenceAdapter, args: unknown) {
   const validated = ListResourceSchema.parse(args);
-  let { resource_type, filters = {}, limit = 50 } = validated;
+  let { resource_type, filters = {}, limit = 50, cursor } = validated;
 
   const resourceDef = getResourceDefinition(resource_type);
   if (!resourceDef) {
@@ -1665,7 +1666,11 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
   }
 
   const persistence = adapter.forCollection(resourceDef.collectionName);
-  const records = await persistence.find(query, limit);
+  const records = await persistence.find(
+    query,
+    limit,
+    cursor ? { cursor } : undefined
+  );
   const formattedRecords = records.map((record) =>
     persistence.toExternal(record, resourceDef.idField)
   );

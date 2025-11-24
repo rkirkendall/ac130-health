@@ -1,5 +1,6 @@
 import { Collection, Db, ObjectId } from 'mongodb';
 import type {
+  FindOptions,
   PersistenceAdapter,
   Query,
   ResourcePersistence,
@@ -161,9 +162,28 @@ export class MongoResourcePersistence implements ResourcePersistence {
     return this.collection.findOne(normalized);
   }
 
-  async find(filter: Query, limit: number): Promise<Record<string, unknown>[]> {
+  async find(
+    filter: Query,
+    limit: number,
+    options?: FindOptions
+  ): Promise<Record<string, unknown>[]> {
     const normalized = this.normalizeFilter(filter);
-    return this.collection.find(normalized).limit(limit).toArray();
+    const query: Query = { ...normalized };
+
+    const cursorId = options?.cursor && ObjectId.isValid(options.cursor)
+      ? new ObjectId(options.cursor)
+      : null;
+
+    if (cursorId) {
+      if (query._id && typeof query._id === 'object' && query._id !== null) {
+        const existing = query._id as Record<string, unknown>;
+        query._id = { ...existing, $gt: cursorId };
+      } else if (!query._id) {
+        query._id = { $gt: cursorId };
+      }
+    }
+
+    return this.collection.find(query).sort({ _id: 1 }).limit(limit).toArray();
   }
 
   async updateById(

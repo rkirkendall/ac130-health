@@ -7,3 +7,4 @@ export * from './persistence.js';
 export * from './crud.js';
 export * from './summary.js';
 export * from './resources.js';
+export * from './tools.js';

@@ -14,8 +14,12 @@ export interface UpdateOptions {
   returnDocument?: ReturnDocument;
 }
 
+export interface FindOptions {
+  cursor?: string | null;
+}
+
 export interface ResourcePersistence {
-  find(filter: Query, limit?: number): Promise<any[]>;
+  find(filter: Query, limit?: number, options?: FindOptions): Promise<any[]>;
   findById(id: string): Promise<any | null>;
   findOne(filter: Query): Promise<any | null>;
   create(data: object): Promise<any>;
