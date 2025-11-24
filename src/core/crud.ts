@@ -410,10 +410,16 @@ export interface CrudRuntimeOptions {
   onHealthSummaryPlan?: (plans: HealthSummarySamplingPlan[]) => Promise<void> | void;
 }
 
+interface SnapshotResourceGroup {
+  records: Record<string, unknown>[];
+  truncated: boolean;
+  limit: number;
+}
+
 interface DependentSnapshot {
   dependent: Record<string, unknown> | null;
   summaryText: string | null;
-  resources: Record<string, Record<string, unknown>[]>;
+  resources: Record<string, SnapshotResourceGroup>;
 }
 
 const DEPENDENT_SUMMARY_RESOURCE_TYPES: ResourceType[] = [
@@ -430,7 +436,24 @@ const DEPENDENT_SUMMARY_RESOURCE_TYPES: ResourceType[] = [
   'insurance',
 ];
 
-const MAX_RECORDS_PER_RESOURCE_FOR_SUMMARY = 25;
+const SNAPSHOT_DEFAULT_RESOURCE_CAP = 5;
+
+const SNAPSHOT_RESOURCE_CAPS: Partial<Record<ResourceType, number>> = {
+  condition: 10,
+  prescription: 10,
+  visit: 8,
+  lab: 8,
+  treatment: 6,
+  procedure: 5,
+  imaging: 5,
+  allergy: 5,
+  immunization: 5,
+  vital_signs: 5,
+  insurance: 3,
+};
+
+const NEW_RECORDS_SECTION_CHAR_BUDGET = 1200;
+const SNAPSHOT_SECTION_CHAR_BUDGET = 2500;
 
 interface SuggestedAction {
   tool: string;
@@ -590,6 +613,42 @@ const HEALTH_SUMMARY_SUGGESTION_COPY: Partial<Record<ResourceType, SuggestionCop
   },
 };
 
+function getSnapshotLimit(resourceType: ResourceType): number {
+  return SNAPSHOT_RESOURCE_CAPS[resourceType] ?? SNAPSHOT_DEFAULT_RESOURCE_CAP;
+}
+
+function formatResourceLabel(resourceType: ResourceType): string {
+  return resourceType
+    .split('_')
+    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .join(' ');
+}
+
+function buildSnapshotSummary(resources: Record<string, SnapshotResourceGroup>): string {
+  const summaryLines: string[] = [];
+  (Object.entries(resources) as [ResourceType, SnapshotResourceGroup][]).forEach(
+    ([resourceType, group]) => {
+      if (!group) {
+        return;
+      }
+      const shown = group.records.length;
+      if (shown === 0 && !group.truncated) {
+        summaryLines.push(`- ${formatResourceLabel(resourceType)}: no records available.`);
+        return;
+      }
+      const descriptor = group.truncated
+        ? `showing latest ${shown} of ${group.limit}+`
+        : `showing ${shown} total`;
+      summaryLines.push(`- ${formatResourceLabel(resourceType)}: ${descriptor}`);
+    }
+  );
+
+  if (summaryLines.length === 0) {
+    return 'No historical clinical records were included in this snapshot.';
+  }
+  return summaryLines.join('\n');
+}
+
 const OUTLINE_REFERENCE_HINT = `Refer to ${HEALTH_SUMMARY_OUTLINE_URI} for the standard outline.`;
 
 const HIGH_RISK_DUPLICATE_RESOURCE_TYPES = new Set<ResourceType>([
@@ -730,9 +789,14 @@ function getDependentDisplayName(dependent: Record<string, unknown> | null): str
   return 'Unknown dependent';
 }
 
-function stringifyForPrompt(value: unknown): string {
+function stringifyForPrompt(
+  value: unknown,
+  options?: {
+    maxLength?: number;
+  }
+): string {
   try {
-    return JSON.stringify(
+    const serialized = JSON.stringify(
       value,
       (_key, val) => {
         if (val instanceof Date) {
@@ -742,6 +806,16 @@ function stringifyForPrompt(value: unknown): string {
       },
       2
     );
+
+    const maxLength = options?.maxLength;
+    if (typeof maxLength === 'number' && maxLength > 0 && serialized.length > maxLength) {
+      return (
+        serialized.slice(0, maxLength) +
+        `\n<<Context truncated after ${maxLength} characters to protect token budget>>`
+      );
+    }
+
+    return serialized;
   } catch (error) {
     return `<<Failed to serialize context: ${error instanceof Error ? error.message : String(error)}>>`;
   }
@@ -765,13 +839,23 @@ async function buildDependentSnapshot(
       ? summaryRecord.summary_text
       : null;
 
-  const resources: Record<string, Record<string, unknown>[]> = {};
+  const resources: Record<string, SnapshotResourceGroup> = {};
   await Promise.all(
     DEPENDENT_SUMMARY_RESOURCE_TYPES.map(async (relatedType) => {
       const relatedDef = RESOURCE_REGISTRY[relatedType];
       const persistence = adapter.forCollection(relatedDef.collectionName);
-      const docs = await persistence.find({ dependent_id: dependentId }, MAX_RECORDS_PER_RESOURCE_FOR_SUMMARY);
-      resources[relatedType] = docs.map((doc) => persistence.toExternal(doc, relatedDef.idField));
+      const limit = getSnapshotLimit(relatedType);
+      const docs = await persistence.find(
+        { dependent_id: dependentId },
+        limit + 1
+      );
+      const truncated = docs.length > limit;
+      const limitedDocs = truncated ? docs.slice(0, limit) : docs;
+      resources[relatedType] = {
+        records: limitedDocs.map((doc) => persistence.toExternal(doc, relatedDef.idField)),
+        truncated,
+        limit,
+      };
     })
   );
 
@@ -807,13 +891,27 @@ function buildHealthSummaryPrompt(params: {
 
   const existingSummary = snapshot.summaryText ?? 'No active health summary recorded yet.';
   const newRecordsBlock = relevantRecords.length > 0
-    ? stringifyForPrompt(relevantRecords)
+    ? stringifyForPrompt(relevantRecords, { maxLength: NEW_RECORDS_SECTION_CHAR_BUDGET })
     : 'No direct record payload was returned for this dependent in this request.';
 
-  const snapshotBlock = stringifyForPrompt({
-    dependent: snapshot.dependent,
-    resources: snapshot.resources,
-  });
+  const snapshotSummary = buildSnapshotSummary(snapshot.resources);
+  const snapshotPayload = Object.fromEntries(
+    Object.entries(snapshot.resources).map(([type, group]) => [
+      type,
+      {
+        truncated: group.truncated,
+        limit: group.limit,
+        records: group.records,
+      },
+    ])
+  );
+  const snapshotBlock = stringifyForPrompt(
+    {
+      dependent: snapshot.dependent,
+      resources: snapshotPayload,
+    },
+    { maxLength: SNAPSHOT_SECTION_CHAR_BUDGET }
+  );
 
   const promptSections = [
     [
@@ -841,13 +939,16 @@ function buildHealthSummaryPrompt(params: {
       newRecordsBlock,
     ].join('\n'),
     [
-      '## Dependent Snapshot Data',
+      '## Dependent Snapshot Coverage',
+      snapshotSummary,
+      '## Snapshot Records (Truncated to protect token budget)',
       snapshotBlock,
-    ].join('\n'),
+    ].join('\n\n'),
     [
       '## Response Requirements',
       '- Return only the updated health summary text.',
       '- Do not include commentary, code fences, or explanations.',
+      '- Focus on changes introduced by the new records; snapshot data is supporting context and may be truncated.',
     ].join('\n'),
   ];
 
@@ -1631,3 +1732,10 @@ export async function listResource(adapter: PersistenceAdapter, args: unknown) {
     ],
   };
 }
+
+export const __healthSummaryInternals = {
+  buildDependentSnapshot,
+  buildHealthSummaryPrompt,
+  stringifyForPrompt,
+  getSnapshotLimit,
+};

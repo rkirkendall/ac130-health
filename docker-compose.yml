@@ -24,6 +24,8 @@ services:
       context: ..
       dockerfile: ac130/Dockerfile
     container_name: health-record-mcp-server
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       mongodb:
         condition: service_healthy

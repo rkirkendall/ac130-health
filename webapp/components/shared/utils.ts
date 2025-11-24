@@ -6,6 +6,7 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
 
 const ISO_DATE_REGEX =
   /^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?$/;
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const isLikelyDateKey = (key: string) => {
   const lower = key.toLowerCase();
@@ -53,6 +54,13 @@ const getDateFromValue = (value: unknown): Date | null => {
     const trimmed = value.trim();
     if (!trimmed) {
       return null;
+    }
+
+    if (DATE_ONLY_REGEX.test(trimmed)) {
+      const [year, month, day] = trimmed.split('-').map(part => Number.parseInt(part, 10));
+      if ([year, month, day].every(num => Number.isInteger(num))) {
+        return new Date(year, month - 1, day);
+      }
     }
 
     const isoCandidate = new Date(trimmed);

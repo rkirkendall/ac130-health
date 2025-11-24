@@ -24,6 +24,9 @@ import { getAllResourceTypes, RESOURCE_REGISTRY } from './resource-registry.js';
 import { getCreateSchemaJson, getUpdateSchemaJson, getListSchemaJson } from './schema-utils.js';
 import { getSharedResourceMetadata, readSharedResource } from './core/resources.js';
 import type { CrudRuntimeOptions, HealthSummarySamplingPlan } from './core/crud.js';
+import { mcpLogger } from './logger.js';
+import { randomUUID } from 'node:crypto';
+import type { IncomingMessage } from 'node:http';
 
 dotenv.config();
 
@@ -31,6 +34,52 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017';
 const DB_NAME = process.env.HEALTH_RECORD_DB_NAME || 'health_record';
 const MCP_TRANSPORT = process.env.MCP_TRANSPORT || 'stdio';
 const MCP_PORT = parseInt(process.env.MCP_PORT || '3002');
+const MCP_HTTP_ENABLE_JSON = process.env.MCP_HTTP_ENABLE_JSON === 'true';
+const HTTP_BODY_PREVIEW_LIMIT = 2000;
+
+function truncateBody(body?: string): string | undefined {
+  if (!body) {
+    return undefined;
+  }
+  if (body.length <= HTTP_BODY_PREVIEW_LIMIT) {
+    return body;
+  }
+  return `${body.slice(0, HTTP_BODY_PREVIEW_LIMIT)}…`;
+}
+
+function summarizeToolResult(result: any): string | undefined {
+  if (!result) {
+    return undefined;
+  }
+
+  try {
+    if (Array.isArray(result.content) && result.content.length > 0) {
+      const first = result.content[0];
+      if (first && typeof first === 'object' && 'text' in first && typeof first.text === 'string') {
+        return truncateBody(first.text);
+      }
+    }
+    if (typeof result === 'object') {
+      return truncateBody(JSON.stringify(result));
+    }
+    return truncateBody(String(result));
+  } catch {
+    return undefined;
+  }
+}
+
+function collectRequestBody(req: IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk) => {
+      chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk);
+    });
+    req.on('end', () => {
+      resolve(Buffer.concat(chunks).toString('utf-8'));
+    });
+    req.on('error', (error) => reject(error));
+  });
+}
 
 console.error(`MCP Transport: ${MCP_TRANSPORT}, Port: ${MCP_PORT}`);
 
@@ -410,8 +459,15 @@ EXAMPLE - Batch Create Labs:
 
 // Handle tool calls
 server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+  const toolName = request.params.name;
+  const toolRequestId = mcpLogger.generateRequestId();
+  const toolStartedAt = Date.now();
+  void mcpLogger.logTool({
+    requestId: toolRequestId,
+    tool: toolName,
+    arguments: request.params.arguments,
+  });
   try {
-    const toolName = request.params.name;
     const healthSummaryPlans: HealthSummarySamplingPlan[] = [];
     const crudOptions: CrudRuntimeOptions = {
       onHealthSummaryPlan: async (plans) => {
@@ -444,6 +500,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
         throw new Error(`Unknown tool: ${toolName}`);
     }
 
+    void mcpLogger.logTool({
+      requestId: toolRequestId,
+      tool: toolName,
+      durationMs: Date.now() - toolStartedAt,
+      resultSummary: summarizeToolResult(result),
+    });
+
     if (
       result &&
       healthSummaryPlans.length > 0 &&
@@ -459,6 +522,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     return result;
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
+    void mcpLogger.logTool({
+      requestId: toolRequestId,
+      tool: toolName,
+      durationMs: Date.now() - toolStartedAt,
+      error: errorMessage,
+    });
     return {
       content: [
         {
@@ -623,37 +692,76 @@ async function main() {
       // HTTP transport (stateless mode, like cloud version)
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
+        enableJsonResponse: MCP_HTTP_ENABLE_JSON,
       });
 
       await server.connect(transport);
 
-      const httpServer = createServer(async (req, res) => {
-        try {
-          // Parse the request body if it's a POST request
-          let parsedBody: unknown;
-          if (req.method === 'POST') {
-            const buffers = [];
-            for await (const chunk of req) {
-              buffers.push(chunk);
-            }
-            const body = Buffer.concat(buffers).toString();
-            try {
-              parsedBody = JSON.parse(body);
-            } catch (parseError) {
-              console.error('Failed to parse JSON body:', parseError);
-              res.writeHead(400, { 'Content-Type': 'application/json' });
-              res.end(JSON.stringify({ error: 'Invalid JSON' }));
-              return;
-            }
-          }
+      const httpServer = createServer((req, res) => {
+        const requestId = mcpLogger.generateRequestId();
+        const startedAt = Date.now();
+        let rawBody: string | undefined;
 
-          await transport.handleRequest(req, res, parsedBody);
-        } catch (error) {
-          console.error('HTTP request error:', error);
-          if (!res.headersSent) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: 'Internal server error' }));
+        const logCompletion = (errorMessage?: string) => {
+          void mcpLogger.logHttp({
+            requestId,
+            method: req.method,
+            url: req.url,
+            statusCode: res.statusCode,
+            durationMs: Date.now() - startedAt,
+            bodyPreview: truncateBody(rawBody),
+            error: errorMessage,
+          });
+        };
+
+        const handleRequest = async (parsedBody: unknown) => {
+          res.once('finish', () => logCompletion());
+          try {
+            await transport.handleRequest(req, res, parsedBody);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('HTTP request error:', error);
+            if (!res.headersSent) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'Internal server error' }));
+            }
+            logCompletion(message);
           }
+        };
+
+        if (req.method === 'POST') {
+          collectRequestBody(req)
+            .then(async (body) => {
+              rawBody = body;
+              if (!body) {
+                await handleRequest(undefined);
+                return;
+              }
+              try {
+                const parsedBody = JSON.parse(body);
+                await handleRequest(parsedBody);
+              } catch (parseError) {
+                const message =
+                  parseError instanceof Error ? parseError.message : 'Unable to parse JSON body';
+                console.error('Failed to parse JSON body:', parseError);
+                if (!res.headersSent) {
+                  res.writeHead(400, { 'Content-Type': 'application/json' });
+                  res.end(JSON.stringify({ error: 'Invalid JSON' }));
+                }
+                logCompletion(message);
+              }
+            })
+            .catch((error) => {
+              const message = error instanceof Error ? error.message : String(error);
+              console.error('Failed to read HTTP request body:', error);
+              if (!res.headersSent) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ error: 'Failed to read request body' }));
+              }
+              logCompletion(message);
+            });
+        } else {
+          void handleRequest(undefined);
         }
       });
 

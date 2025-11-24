@@ -12,10 +12,41 @@ const DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
 });
 
 const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}(?:[T\s]\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})?)?$/;
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const isLikelyDateKey = (key: string) => {
   const lower = key.toLowerCase();
   return lower.includes('date') || lower.endsWith('_at');
+};
+
+const toDate = (value: unknown): Date | null => {
+  if (value instanceof Date) {
+    return value;
+  }
+
+  if (typeof value === 'number') {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+
+    if (DATE_ONLY_REGEX.test(trimmed)) {
+      const [year, month, day] = trimmed.split('-').map(part => Number.parseInt(part, 10));
+      if ([year, month, day].every(num => Number.isInteger(num))) {
+        return new Date(year, month - 1, day);
+      }
+    }
+
+    const parsed = new Date(trimmed);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
 };
 
 export const formatDateValue = (value: unknown): string | null => {
@@ -23,9 +54,8 @@ export const formatDateValue = (value: unknown): string | null => {
     return null;
   }
 
-  const date = value instanceof Date ? value : new Date(value as string | number);
-
-  if (Number.isNaN(date.getTime())) {
+  const date = toDate(value);
+  if (!date) {
     return null;
   }
 
@@ -41,7 +71,7 @@ export const formatFieldValue = (key: string, value: unknown): string => {
     return formatDateValue(value) ?? 'N/A';
   }
 
-  if (typeof value === 'object') {
+  if (typeof value === 'object' && !(value instanceof Date)) {
     return JSON.stringify(value, null, 2);
   }
 
