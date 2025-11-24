@@ -1,7 +1,7 @@
 import { ObjectId } from 'mongodb';
-import { PhiVaultEntry } from '../types.js';
+import type { PhiVaultEntry } from '../types.js';
 
-export { PhiVaultEntry };
+export type { PhiVaultEntry };
 
 /**
  * Represents a single piece of Protected Health Information (PHI).

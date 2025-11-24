@@ -120,6 +120,10 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetVisitSchema,
     listSchema: ListVisitsSchema,
     supportsBatch: true,
+    phiFields: [
+      { path: 'reason', strategy: 'substring' },
+      { path: 'notes', strategy: 'substring' },
+    ],
   },
   prescription: {
     name: 'prescription',
@@ -153,6 +157,10 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetTreatmentSchema,
     listSchema: ListTreatmentsSchema,
     supportsBatch: false,
+    phiFields: [
+      { path: 'title', strategy: 'substring' },
+      { path: 'description', strategy: 'substring' },
+    ],
   },
   condition: {
     name: 'condition',
@@ -176,6 +184,10 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetAllergySchema,
     listSchema: ListAllergiesSchema,
     supportsBatch: true,
+    phiFields: [
+      { path: 'reaction', strategy: 'substring' },
+      { path: 'notes', strategy: 'substring' },
+    ],
   },
   immunization: {
     name: 'immunization',
@@ -187,6 +199,9 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetImmunizationSchema,
     listSchema: ListImmunizationsSchema,
     supportsBatch: true,
+    phiFields: [
+      { path: 'notes', strategy: 'substring' },
+    ],
   },
   vital_signs: {
     name: 'vital_signs',
@@ -198,6 +213,9 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetVitalSignsSchema,
     listSchema: ListVitalSignsSchema,
     supportsBatch: true,
+    phiFields: [
+      { path: 'notes', strategy: 'substring' },
+    ],
   },
   procedure: {
     name: 'procedure',
@@ -209,6 +227,12 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetProcedureSchema,
     listSchema: ListProceduresSchema,
     supportsBatch: true,
+    phiFields: [
+      { path: 'indication', strategy: 'substring' },
+      { path: 'outcome', strategy: 'substring' },
+      { path: 'complications', strategy: 'substring' },
+      { path: 'notes', strategy: 'substring' },
+    ],
   },
   imaging: {
     name: 'imaging',
@@ -220,6 +244,11 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetImagingSchema,
     listSchema: ListImagingSchema,
     supportsBatch: true,
+    phiFields: [
+      { path: 'findings', strategy: 'substring' },
+      { path: 'impression', strategy: 'substring' },
+      { path: 'notes', strategy: 'substring' },
+    ],
   },
   insurance: {
     name: 'insurance',
@@ -231,6 +260,14 @@ export const RESOURCE_REGISTRY: Record<ResourceType, ResourceDefinition> = {
     getSchema: GetInsuranceSchema,
     listSchema: ListInsuranceSchema,
     supportsBatch: true,
+    phiFields: [
+      { path: 'policy_number', strategy: 'substring' },
+      { path: 'group_number', strategy: 'substring' },
+      { path: 'subscriber_name', strategy: 'substring' },
+      { path: 'subscriber_relationship', strategy: 'substring' },
+      { path: 'phone', strategy: 'substring' },
+      { path: 'notes', strategy: 'substring' },
+    ],
   },
 };
 

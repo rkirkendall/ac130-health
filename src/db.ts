@@ -20,15 +20,18 @@ import type {
 export class Database {
   private client: MongoClient;
   private db: Db | null = null;
+  private readonly configuredDbName?: string;
 
-  constructor(uri: string, dbName: string) {
+  constructor(uri: string, dbName?: string) {
     this.client = new MongoClient(uri);
+    this.configuredDbName = dbName;
   }
 
   async connect(): Promise<void> {
     await this.client.connect();
-    const dbName = process.env.HEALTH_RECORD_DB_NAME || 'health_record';
-    this.db = this.client.db(dbName);
+    const resolvedDbName =
+      this.configuredDbName ?? process.env.HEALTH_RECORD_DB_NAME ?? 'health_record';
+    this.db = this.client.db(resolvedDbName);
     console.error('Connected to MongoDB');
   }
 

@@ -46,6 +46,16 @@ class MockPersistenceAdapter {
     return { ...record, [idField]: record._id.toString() };
   }
   getDb() { return null; }
+  getPhiVault() {
+    return {
+      upsertPhiEntries: async () => [],
+      getUnstructuredPhiVaultEntries: async () => [],
+      upsertStructuredPhiVault: async () => new ObjectId().toHexString(),
+      getStructuredPhiVault: async () => null,
+      getStructuredPhiVaults: async () => new Map(),
+      getStructuredPhiVaultByDependentId: async () => null,
+    };
+  }
 }
 
 describe('Visit Update Regression Test', () => {

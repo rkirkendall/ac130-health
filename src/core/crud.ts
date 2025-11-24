@@ -5,7 +5,6 @@ import { zodToJsonSchemaForMCP } from './schema-utils.js';
 import type { PersistenceAdapter } from './persistence.js';
 import { HEALTH_SUMMARY_OUTLINE_URI, HEALTH_SUMMARY_OUTLINE_MARKDOWN } from './resources.js';
 import {
-  detectPhi,
   vaultAndSanitize,
 } from './phi/index.js';
 import { ObjectId } from 'mongodb';
@@ -989,36 +988,97 @@ export async function createResource(
       throw new Error(`Resource type ${resource_type} does not support batch creation`);
     }
 
-    // This is a simplified implementation for batch PHI handling.
-    // A more robust solution would handle per-record PHI.
-    const detectedInBatch = validatedData
-      .map((item: any) => detectPhi(item, resource_type))
-      .flat();
+    type BatchEntry = {
+      normalized: Record<string, unknown>;
+      dependentPhiPayload?: Record<string, unknown>;
+    };
 
-    if (detectedInBatch.length > 0) {
-      console.log(`PHI DETECTED in ${resource_type} (batch):`, detectedInBatch);
-      // NOTE: Vaulting and sanitization are not yet implemented for batch operations.
-      // This would require a more complex implementation to map vaulted entries
-      // back to the correct records.
-    }
+    const batchEntries: BatchEntry[] = validatedData.map((item: any) => {
+      const normalizedInput =
+        item && typeof item === 'object'
+          ? ensureArchiveFlag(item as Record<string, unknown>)
+          : (item as Record<string, unknown>);
 
-    const records = validatedData.map((item: any) => {
-      const normalized = ensureArchiveFlag(item as Record<string, unknown>);
+      if (resourceType === 'dependent' && normalizedInput && typeof normalizedInput === 'object') {
+        const separation = separatePhiPayload(normalizedInput as Record<string, unknown>);
+        return {
+          normalized: separation.sanitized,
+          dependentPhiPayload: separation.phiPayload,
+        };
+      }
+
       return {
-        ...normalized,
-        created_at: now,
-        updated_at: now,
-        created_by: 'mcp',
-        updated_by: 'mcp',
+        normalized: normalizedInput,
       };
     });
 
-    const insertedRecords = await persistence.createMany(records);
-    const formatted = insertedRecords.map((record) =>
-      persistence.toExternal(record, resourceDef.idField)
-    );
+    const insertPayloads = batchEntries.map((entry) => ({
+      ...entry.normalized,
+      created_at: now,
+      updated_at: now,
+      created_by: 'mcp',
+      updated_by: 'mcp',
+    }));
 
-    let meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formatted);
+    const insertedRecords = await persistence.createMany(insertPayloads);
+    const formattedRecords: Record<string, unknown>[] = [];
+
+    for (let i = 0; i < insertedRecords.length; i++) {
+      const inserted = insertedRecords[i];
+      if (!inserted) {
+        continue;
+      }
+
+      const formatted = persistence.toExternal(inserted, resourceDef.idField);
+      const resourceId = formatted[resourceDef.idField] as string;
+      const pendingUpdates: Record<string, unknown> = {};
+      const entryMeta = batchEntries[i];
+
+      if (resourceType === 'dependent' && entryMeta?.dependentPhiPayload) {
+        const phiVaultId = await adapter.getPhiVault().upsertStructuredPhiVault(
+          resourceId,
+          entryMeta.dependentPhiPayload
+        );
+        pendingUpdates.phi_vault_id = phiVaultId;
+
+        const deidentified = computeDemographics(entryMeta.dependentPhiPayload as any);
+        (formatted as any).deidentified_profile = deidentified;
+      }
+
+      if (resourceDef.phiFields && resourceDef.phiFields.length > 0) {
+        const dependentIdString = extractDependentIds(resourceType, resourceDef, formatted)[0];
+        if (!dependentIdString) {
+          console.warn(
+            `Skipping PHI vaulting for ${resourceType} ${resourceId} - dependent_id not found`
+          );
+        } else if (entryMeta?.normalized) {
+          const sanitizedPayload = await vaultAndSanitize(
+            adapter.getPhiVault(),
+            resourceType,
+            resourceId,
+            dependentIdString,
+            entryMeta.normalized
+          );
+
+          if (!isEqual(sanitizedPayload, entryMeta.normalized)) {
+            Object.assign(pendingUpdates, sanitizedPayload);
+            entryMeta.normalized = sanitizedPayload;
+          }
+        }
+      }
+
+      if (Object.keys(pendingUpdates).length > 0) {
+        await persistence.updateById(resourceId, { set: pendingUpdates });
+        Object.assign(formatted, pendingUpdates);
+        if (typeof pendingUpdates.phi_vault_id === 'string') {
+          formatted.phi_vault_id = pendingUpdates.phi_vault_id;
+        }
+      }
+
+      formattedRecords.push(formatted);
+    }
+
+    let meta = buildHealthSummaryMeta(resourceType, 'create', resourceDef, formattedRecords);
     const copy = HEALTH_SUMMARY_SUGGESTION_COPY[resourceType];
     const plans = copy
       ? await buildHealthSummarySamplingPlans(
@@ -1026,7 +1086,7 @@ export async function createResource(
           resourceType,
           'create',
           resourceDef,
-          formatted,
+          formattedRecords,
           copy.create
         )
       : [];
@@ -1049,8 +1109,8 @@ export async function createResource(
         {
           type: 'text',
           text: JSON.stringify({
-            count: formatted.length,
-            [resourceDef.collectionName]: formatted,
+            count: formattedRecords.length,
+            [resourceDef.collectionName]: formattedRecords,
           }, null, 2),
         },
       ],
