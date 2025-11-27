@@ -41,6 +41,7 @@ interface ScenarioDefinition {
   conversation: ScenarioMessage[];
   expectations?: {
     actions?: ActionExpectation[];
+    state_assertions?: StateAssertion[];
   };
   seed?: {
     mongo_dump?: string;
@@ -472,25 +473,39 @@ async function evaluateExpectations(options: {
   const usedIndices = new Set<number>();
 
   for (const expected of expectedActions) {
-    const observedIndex = observedActions.findIndex(
-      (action, idx) => !usedIndices.has(idx) && action.order >= expected.order && action.tool === expected.tool
-    );
-    const observed = observedIndex >= 0 ? observedActions[observedIndex] : undefined;
+    let observedIndex = -1;
+    let observed: ObservedAction | undefined;
+    let lastArgumentMismatch: string | undefined;
+
+    for (let idx = 0; idx < observedActions.length; idx += 1) {
+      const action = observedActions[idx];
+      if (usedIndices.has(idx) || action.order < expected.order || action.tool !== expected.tool) {
+        continue;
+      }
+      if (expected.arguments) {
+        const match = deepPartialMatch(expected.arguments, action.arguments ?? {});
+        if (!match.ok) {
+          lastArgumentMismatch = match.reason;
+          continue;
+        }
+      }
+      observedIndex = idx;
+      observed = action;
+      break;
+    }
+
     if (!observed) {
       if (expected.required === false) {
         continue;
       }
-      errors.push(`Missing action with order ${expected.order} (${expected.tool})`);
+      if (lastArgumentMismatch) {
+        errors.push(`Argument mismatch for ${expected.tool}: ${lastArgumentMismatch}`);
+      } else {
+        errors.push(`Missing action with order ${expected.order} (${expected.tool})`);
+      }
       continue;
     }
     usedIndices.add(observedIndex);
-
-    if (expected.arguments) {
-      const match = deepPartialMatch(expected.arguments, observed.arguments ?? {});
-      if (!match.ok) {
-        errors.push(`Argument mismatch for ${expected.tool}: ${match.reason}`);
-      }
-    }
 
     if (expected.state_assertions?.length) {
       for (const assertion of expected.state_assertions) {
@@ -513,10 +528,63 @@ async function evaluateExpectations(options: {
     }
   }
 
+  if (scenario.expectations?.state_assertions?.length) {
+    for (const assertion of scenario.expectations.state_assertions) {
+      const query = convertObjectIdFields(assertion.query);
+      const doc = await db.collection(assertion.collection).findOne(query);
+      if (!doc) {
+        errors.push(
+          `State assertion failed: no document in ${assertion.collection} matching ${JSON.stringify(assertion.query)}`
+        );
+        continue;
+      }
+      const matchDoc = serializeDocument(doc);
+      const match = deepPartialMatch(assertion.match, matchDoc);
+      if (!match.ok) {
+        errors.push(`State assertion mismatch in ${assertion.collection}: ${match.reason}`);
+      }
+    }
+  }
+
   return errors;
 }
 
+type RegexDescriptor = { $regex: string; $flags?: string };
+
+function isRegexDescriptor(value: JsonValue): value is RegexDescriptor {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return false;
+  }
+  return typeof (value as Record<string, JsonValue>).$regex === 'string';
+}
+
+function formatRegex(descriptor: RegexDescriptor): string {
+  return `/${descriptor.$regex}/${descriptor.$flags ?? ''}`;
+}
+
 function deepPartialMatch(expected: JsonValue, actual: JsonValue): { ok: boolean; reason?: string } {
+  if (isRegexDescriptor(expected)) {
+    const actualText = typeof actual === 'string' ? actual : undefined;
+    if (actualText === undefined) {
+      return {
+        ok: false,
+        reason: `Expected value matching ${formatRegex(expected)}, got ${JSON.stringify(actual)}`,
+      };
+    }
+    let regex: RegExp;
+    try {
+      regex = new RegExp(expected.$regex, expected.$flags);
+    } catch (error) {
+      return {
+        ok: false,
+        reason: `Invalid regex ${formatRegex(expected)}: ${(error as Error).message}`,
+      };
+    }
+    return regex.test(actualText)
+      ? { ok: true }
+      : { ok: false, reason: `Value "${actualText}" did not match ${formatRegex(expected)}` };
+  }
+
   if (typeof expected !== 'object' || expected === null) {
     return Object.is(expected, actual)
       ? { ok: true }
@@ -555,16 +623,26 @@ function deepPartialMatch(expected: JsonValue, actual: JsonValue): { ok: boolean
   return { ok: true };
 }
 
-function convertObjectIdFields(query: Record<string, JsonValue>): Record<string, JsonValue> {
-  const converted: Record<string, JsonValue> = {};
+function convertObjectIdFields(query: Record<string, JsonValue>): Record<string, any> {
+  const converted: Record<string, any> = {};
   for (const [key, value] of Object.entries(query)) {
-    if (key === '_id' && typeof value === 'string' && ObjectId.isValid(value)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      if (isRegexDescriptor(value)) {
+        converted[key] = new RegExp(value.$regex, value.$flags);
+      } else {
+        converted[key] = convertObjectIdFields(value as Record<string, JsonValue>);
+      }
+    } else if (typeof value === 'string' && ObjectId.isValid(value) && shouldConvertToObjectId(key)) {
       converted[key] = new ObjectId(value);
     } else {
       converted[key] = value;
     }
   }
   return converted;
+}
+
+function shouldConvertToObjectId(key: string): boolean {
+  return key === '_id' || key.endsWith('_id');
 }
 
 function serializeDocument(doc: Record<string, any>): Record<string, JsonValue> {

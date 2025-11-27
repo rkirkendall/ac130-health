@@ -77,7 +77,9 @@ Each `scenario.json` follows this shape:
 Key points:
 - `conversation` represents the initial turn history handed to Codex. It supports `system`, `user`, and `assistant` roles.
 - `expectations.actions` is an ordered list of tool invocations to assert. Arguments are compared using deep partial matching (the test can pin only the fields that matter).
+- To allow flexible string matching, set a field to `{ "$regex": "pattern", "$flags": "i" }`. This passes if the actual value matches the supplied regular expression (flags are optional and mirror JavaScript’s `RegExp` flags).
 - `state_assertions` lets a step declare Mongo collection + query + expected document shape after that action completes.
+- `expectations.state_assertions` (top-level) can be used when you only care about the final database state. The harness will evaluate those assertions after the scenario finishes, regardless of the specific tool calls taken.
 - `seed.mongo_dump` points at a JSON file in the same directory loaded into the test Mongo database before the conversation starts.
 
 ## Observed MCP Log Format
@@ -85,7 +87,7 @@ For every scenario the harness writes `logs/<scenario>/actions.json` so assertio
 
 ```json
 {
-  "scenario": "sample-condition-update",
+  "scenario": "scenario-one",
   "model": "gpt-4.1-mini",
   "actions": [
     {
@@ -102,7 +104,7 @@ For every scenario the harness writes `logs/<scenario>/actions.json` so assertio
       }
     }
   ],
-  "transcript_file": "logs/sample-condition-update/transcript.ndjson"
+  "transcript_file": "logs/scenario-one/transcript.ndjson"
 }
 ```
 
@@ -122,7 +124,7 @@ The harness will diff `expectations.actions` against `actions.json` using deep p
 
    ```bash
    npm run test:llm            # run all scenarios
-   npm run test:llm -- --scenario sample-condition-update
+   npm run test:llm -- --scenario scenario-one
    npm run test:llm -- --list               # list scenarios only
    npm run test:llm -- --no-expect          # skip expectation checks (observation mode)
    ```

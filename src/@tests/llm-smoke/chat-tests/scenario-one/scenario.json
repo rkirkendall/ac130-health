@@ -1,0 +1,81 @@
+{
+  "metadata": {
+    "name": "scenario-one",
+    "description": "Scenario One – ensures the PCP visit, PMR diagnosis, and prednisone plan are recorded for the seeded dependent.",
+    "model": "gpt-5.1",
+    "temperature": 0.5,
+    "model_base_url": "https://api.openai.com/v1",
+    "max_turns": 6
+  },
+  "conversation": [
+    {
+      "role": "system",
+      "content": "Use AC130 MCP to view and update health records."
+    },
+    {
+      "role": "user",
+      "content": "My dad went to his PCP, Dr Chen, this morning for shoulder pain and was diagnosed with PMR and put on 10mg of prednisone, with instructions to taper off every 2 weeks by 2.5mg. Please update his record in AC130."
+    }
+  ],
+  "expectations": {
+    "state_assertions": [
+      {
+        "collection": "visits",
+        "query": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "date": "2025-11-27",
+          "type": "office"
+        },
+        "match": {
+          "reason": {
+            "$regex": "shoulder\\s+pain",
+            "$flags": "i"
+          },
+          "notes": {
+            "$regex": "prednisone",
+            "$flags": "i"
+          }
+        }
+      },
+      {
+        "collection": "conditions",
+        "query": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "diagnosed_date": "2025-11-27"
+        },
+        "match": {
+          "name": {
+            "$regex": "polymyalgia\\s+rheumatica",
+            "$flags": "i"
+          },
+          "notes": {
+            "$regex": "(prednisone|shoulder)",
+            "$flags": "i"
+          },
+          "status": "active"
+        }
+      },
+      {
+        "collection": "prescriptions",
+        "query": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "medication_name": "Prednisone"
+        },
+        "match": {
+          "dose": {
+            "$regex": "10\\s*mg",
+            "$flags": "i"
+          },
+          "frequency": {
+            "$regex": "(taper|decrease)",
+            "$flags": "i"
+          },
+          "status": "active"
+        }
+      }
+    ]
+  },
+  "seed": {
+    "mongo_dump": "seed.json"
+  }
+}

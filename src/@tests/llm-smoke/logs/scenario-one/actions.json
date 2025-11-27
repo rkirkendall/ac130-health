@@ -1,0 +1,291 @@
+{
+  "scenario": "scenario-one",
+  "actions": [
+    {
+      "order": 1,
+      "tool": "list_mcp_resource_templates",
+      "arguments": {
+        "cursor": ""
+      },
+      "result": {
+        "text": "{\"resourceTemplates\":[]}"
+      },
+      "raw": {
+        "item_id": "item_1",
+        "server": "codex"
+      }
+    },
+    {
+      "order": 2,
+      "tool": "list_mcp_resources",
+      "arguments": {
+        "cursor": ""
+      },
+      "result": {
+        "text": "{\"resources\":[{\"server\":\"health-record-mcp\",\"description\":\"Current health summary for a dependent\",\"mimeType\":\"text/plain\",\"name\":\"Active Health Summary\",\"uri\":\"summary://dependent/{dependent_id}\"},{\"server\":\"health-record-mcp\",\"description\":\"Standard outline and writing guidance for dependent health summaries.\",\"mimeType\":\"text/markdown\",\"name\":\"Health Summary Outline\",\"uri\":\"guide://health_summary/outline\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Profiles (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"dependent Schemas\",\"uri\":\"schema://dependent\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Healthcare providers (create/update)\",\"mimeType\":\"application/json\",\"name\":\"provider Schemas\",\"uri\":\"schema://provider\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Visits & encounters (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"visit Schemas\",\"uri\":\"schema://visit\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Prescriptions (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"prescription Schemas\",\"uri\":\"schema://prescription\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Lab orders & results (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"lab Schemas\",\"uri\":\"schema://lab\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Treatment plans (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"treatment Schemas\",\"uri\":\"schema://treatment\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Conditions & diagnoses (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"condition Schemas\",\"uri\":\"schema://condition\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Allergies (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"allergy Schemas\",\"uri\":\"schema://allergy\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Immunizations & vaccinations (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"immunization Schemas\",\"uri\":\"schema://immunization\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Vital signs (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"vital_signs Schemas\",\"uri\":\"schema://vital_signs\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Procedures & surgeries (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"procedure Schemas\",\"uri\":\"schema://procedure\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Imaging & radiology (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"imaging Schemas\",\"uri\":\"schema://imaging\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Insurance coverage (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"insurance Schemas\",\"uri\":\"schema://insurance\"}]}"
+      },
+      "raw": {
+        "item_id": "item_3",
+        "server": "codex"
+      }
+    },
+    {
+      "order": 3,
+      "tool": "list_resource",
+      "arguments": {
+        "resource_type": "dependent"
+      },
+      "result": {
+        "text": "{\n  \"count\": 1,\n  \"dependents\": [\n    {\n      \"_id\": \"665f1f77bcf86cd799439021\",\n      \"dependent_id\": \"665f1f77bcf86cd799439021\",\n      \"record_identifier\": \"father\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"relationship\": \"father\",\n      \"created_at\": \"2025-01-01T00:00:00Z\"\n    }\n  ]\n}"
+      },
+      "raw": {
+        "item_id": "item_5",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 4,
+      "tool": "list_resource",
+      "arguments": {
+        "resource_type": "provider"
+      },
+      "result": {
+        "text": "{\n  \"count\": 0,\n  \"providers\": []\n}"
+      },
+      "raw": {
+        "item_id": "item_7",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 5,
+      "tool": "read_mcp_resource",
+      "arguments": {
+        "server": "health-record-mcp",
+        "uri": "schema://provider"
+      },
+      "result": {
+        "text": "{\"server\":\"health-record-mcp\",\"uri\":\"schema://provider\",\"contents\":[{\"mimeType\":\"application/json\",\"text\":\"{\\n  \\\"resource_type\\\": \\\"provider\\\",\\n  \\\"create\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"name\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"organization\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"specialty\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"contact\\\": {\\n        \\\"type\\\": \\\"object\\\",\\n        \\\"properties\\\": {\\n          \\\"phone\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"email\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          }\\n        },\\n        \\\"additionalProperties\\\": false\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      }\\n    },\\n    \\\"required\\\": [\\n      \\\"name\\\"\\n    ],\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"provider Create Schema\\\",\\n    \\\"description\\\": \\\"Schema for creating provider resources.\\\"\\n  },\\n  \\\"update\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"name\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"organization\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"specialty\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"contact\\\": {\\n        \\\"type\\\": \\\"object\\\",\\n        \\\"properties\\\": {\\n          \\\"phone\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"email\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          }\\n        },\\n        \\\"additionalProperties\\\": false\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"provider Update Schema\\\",\\n    \\\"description\\\": \\\"Schema for updating provider resources. All fields are optional. The provider_id is passed separately in the tool call.\\\"\\n  }\\n}\",\"uri\":\"schema://provider\"}]}"
+      },
+      "raw": {
+        "item_id": "item_9",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 6,
+      "tool": "read_mcp_resource",
+      "arguments": {
+        "server": "health-record-mcp",
+        "uri": "schema://visit"
+      },
+      "result": {
+        "text": "{\"server\":\"health-record-mcp\",\"uri\":\"schema://visit\",\"contents\":[{\"mimeType\":\"application/json\",\"text\":\"{\\n  \\\"resource_type\\\": \\\"visit\\\",\\n  \\\"create\\\": {\\n    \\\"oneOf\\\": [\\n      {\\n        \\\"type\\\": \\\"object\\\",\\n        \\\"properties\\\": {\\n          \\\"dependent_id\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"date\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"provider_id\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"type\\\": {\\n            \\\"type\\\": \\\"string\\\",\\n            \\\"enum\\\": [\\n              \\\"office\\\",\\n              \\\"er\\\",\\n              \\\"telehealth\\\",\\n              \\\"inpatient\\\",\\n              \\\"other\\\"\\n            ]\\n          },\\n          \\\"reason\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"notes\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"archived\\\": {\\n            \\\"type\\\": \\\"boolean\\\"\\n          }\\n        },\\n        \\\"required\\\": [\\n          \\\"dependent_id\\\"\\n        ],\\n        \\\"additionalProperties\\\": false,\\n        \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n      },\\n      {\\n        \\\"type\\\": \\\"array\\\",\\n        \\\"items\\\": {\\n          \\\"type\\\": \\\"object\\\",\\n          \\\"properties\\\": {\\n            \\\"dependent_id\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"date\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"provider_id\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"type\\\": {\\n              \\\"type\\\": \\\"string\\\",\\n              \\\"enum\\\": [\\n                \\\"office\\\",\\n                \\\"er\\\",\\n                \\\"telehealth\\\",\\n                \\\"inpatient\\\",\\n                \\\"other\\\"\\n              ]\\n            },\\n            \\\"reason\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"notes\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"archived\\\": {\\n              \\\"type\\\": \\\"boolean\\\"\\n            }\\n          },\\n          \\\"required\\\": [\\n            \\\"dependent_id\\\"\\n          ],\\n          \\\"additionalProperties\\\": false,\\n          \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n        }\\n      }\\n    ],\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"visit Create Schema\\\",\\n    \\\"description\\\": \\\"Schema for creating visit resources.\\\\n\\\\nSupports both single and batch creation:\\\\n- Single: Pass an object matching the schema\\\\n- Batch: Pass an array of objects matching the schema\\\\n\\\\n\\\\nEXAMPLES:\\\\n\\\\nSingle Record:\\\\n{\\\\n  \\\\\\\"dependent_id\\\\\\\": \\\\\\\"507f1f77bcf86cd799439011\\\\\\\",\\\\n  \\\\\\\"date\\\\\\\": \\\\\\\"2024-01-15\\\\\\\",\\\\n  \\\\\\\"type\\\\\\\": \\\\\\\"office\\\\\\\",\\\\n  \\\\\\\"reason\\\\\\\": \\\\\\\"Annual checkup\\\\\\\"\\\\n}\\\\n\\\\nBatch Creation:\\\\n[\\\\n  {\\\\n    \\\\\\\"dependent_id\\\\\\\": \\\\\\\"507f1f77bcf86cd799439011\\\\\\\",\\\\n    \\\\\\\"date\\\\\\\": \\\\\\\"2024-01-15\\\\\\\",\\\\n    \\\\\\\"type\\\\\\\": \\\\\\\"office\\\\\\\"\\\\n  },\\\\n  {\\\\n    \\\\\\\"dependent_id\\\\\\\": \\\\\\\"507f1f77bcf86cd799439011\\\\\\\",\\\\n    \\\\\\\"date\\\\\\\": \\\\\\\"2024-02-20\\\\\\\",\\\\n    \\\\\\\"type\\\\\\\": \\\\\\\"telehealth\\\\\\\"\\\\n  }\\\\n]\\\",\\n    \\\"examples\\\": [\\n      {\\n        \\\"dependent_id\\\": \\\"507f1f77bcf86cd799439011\\\",\\n        \\\"date\\\": \\\"2024-01-15\\\",\\n        \\\"type\\\": \\\"office\\\",\\n        \\\"reason\\\": \\\"Annual checkup\\\"\\n      },\\n      [\\n        {\\n          \\\"dependent_id\\\": \\\"507f1f77bcf86cd799439011\\\",\\n          \\\"date\\\": \\\"2024-01-15\\\",\\n          \\\"type\\\": \\\"office\\\"\\n        },\\n        {\\n          \\\"dependent_id\\\": \\\"507f1f77bcf86cd799439011\\\",\\n          \\\"date\\\": \\\"2024-02-20\\\",\\n          \\\"type\\\": \\\"telehealth\\\"\\n        }\\n      ]\\n    ]\\n  },\\n  \\\"update\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"date\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"provider_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"type\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"office\\\",\\n          \\\"er\\\",\\n          \\\"telehealth\\\",\\n          \\\"inpatient\\\",\\n          \\\"other\\\"\\n        ]\\n      },\\n      \\\"reason\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"notes\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"visit Update Schema\\\",\\n    \\\"description\\\": \\\"Schema for updating visit resources. All fields are optional. The visit_id is passed separately in the tool call.\\\"\\n  },\\n  \\\"list\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"dependent_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"provider_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"type\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"office\\\",\\n          \\\"er\\\",\\n          \\\"telehealth\\\",\\n          \\\"inpatient\\\",\\n          \\\"other\\\"\\n        ]\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      },\\n      \\\"limit\\\": {\\n        \\\"type\\\": \\\"number\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"visit List Schema\\\",\\n    \\\"description\\\": \\\"Schema for filtering visit resources.\\\"\\n  }\\n}\",\"uri\":\"schema://visit\"}]}"
+      },
+      "raw": {
+        "item_id": "item_11",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 7,
+      "tool": "read_mcp_resource",
+      "arguments": {
+        "server": "health-record-mcp",
+        "uri": "schema://condition"
+      },
+      "result": {
+        "text": "{\"server\":\"health-record-mcp\",\"uri\":\"schema://condition\",\"contents\":[{\"mimeType\":\"application/json\",\"text\":\"{\\n  \\\"resource_type\\\": \\\"condition\\\",\\n  \\\"create\\\": {\\n    \\\"oneOf\\\": [\\n      {\\n        \\\"type\\\": \\\"object\\\",\\n        \\\"properties\\\": {\\n          \\\"dependent_id\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"name\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"diagnosed_date\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"resolved_date\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"status\\\": {\\n            \\\"type\\\": \\\"string\\\",\\n            \\\"enum\\\": [\\n              \\\"active\\\",\\n              \\\"resolved\\\",\\n              \\\"chronic\\\"\\n            ]\\n          },\\n          \\\"severity\\\": {\\n            \\\"type\\\": \\\"string\\\",\\n            \\\"enum\\\": [\\n              \\\"mild\\\",\\n              \\\"moderate\\\",\\n              \\\"severe\\\"\\n            ]\\n          },\\n          \\\"notes\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"diagnosed_by\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"archived\\\": {\\n            \\\"type\\\": \\\"boolean\\\"\\n          }\\n        },\\n        \\\"required\\\": [\\n          \\\"dependent_id\\\",\\n          \\\"name\\\"\\n        ],\\n        \\\"additionalProperties\\\": false,\\n        \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n      },\\n      {\\n        \\\"type\\\": \\\"array\\\",\\n        \\\"items\\\": {\\n          \\\"type\\\": \\\"object\\\",\\n          \\\"properties\\\": {\\n            \\\"dependent_id\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"name\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"diagnosed_date\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"resolved_date\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"status\\\": {\\n              \\\"type\\\": \\\"string\\\",\\n              \\\"enum\\\": [\\n                \\\"active\\\",\\n                \\\"resolved\\\",\\n                \\\"chronic\\\"\\n              ]\\n            },\\n            \\\"severity\\\": {\\n              \\\"type\\\": \\\"string\\\",\\n              \\\"enum\\\": [\\n                \\\"mild\\\",\\n                \\\"moderate\\\",\\n                \\\"severe\\\"\\n              ]\\n            },\\n            \\\"notes\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"diagnosed_by\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"archived\\\": {\\n              \\\"type\\\": \\\"boolean\\\"\\n            }\\n          },\\n          \\\"required\\\": [\\n            \\\"dependent_id\\\",\\n            \\\"name\\\"\\n          ],\\n          \\\"additionalProperties\\\": false,\\n          \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n        }\\n      }\\n    ],\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"condition Create Schema\\\",\\n    \\\"description\\\": \\\"Schema for creating condition resources.\\\\n\\\\nSupports both single and batch creation:\\\\n- Single: Pass an object matching the schema\\\\n- Batch: Pass an array of objects matching the schema\\\\n\\\\n\\\\nEXAMPLES:\\\\n\\\\nSingle Record:\\\\n{\\\\n  \\\\\\\"dependent_id\\\\\\\": \\\\\\\"507f1f77bcf86cd799439011\\\\\\\",\\\\n  \\\\\\\"name\\\\\\\": \\\\\\\"Hypertension\\\\\\\",\\\\n  \\\\\\\"status\\\\\\\": \\\\\\\"active\\\\\\\",\\\\n  \\\\\\\"diagnosed_date\\\\\\\": \\\\\\\"2023-05-10\\\\\\\"\\\\n}\\\",\\n    \\\"examples\\\": [\\n      {\\n        \\\"dependent_id\\\": \\\"507f1f77bcf86cd799439011\\\",\\n        \\\"name\\\": \\\"Hypertension\\\",\\n        \\\"status\\\": \\\"active\\\",\\n        \\\"diagnosed_date\\\": \\\"2023-05-10\\\"\\n      }\\n    ]\\n  },\\n  \\\"update\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"name\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"diagnosed_date\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"resolved_date\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"status\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"active\\\",\\n          \\\"resolved\\\",\\n          \\\"chronic\\\"\\n        ]\\n      },\\n      \\\"severity\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"mild\\\",\\n          \\\"moderate\\\",\\n          \\\"severe\\\"\\n        ]\\n      },\\n      \\\"notes\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"diagnosed_by\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"condition Update Schema\\\",\\n    \\\"description\\\": \\\"Schema for updating condition resources. All fields are optional. The condition_id is passed separately in the tool call.\\\"\\n  },\\n  \\\"list\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"dependent_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"diagnosed_by\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"status\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"active\\\",\\n          \\\"resolved\\\",\\n          \\\"chronic\\\"\\n        ]\\n      },\\n      \\\"severity\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"mild\\\",\\n          \\\"moderate\\\",\\n          \\\"severe\\\"\\n        ]\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      },\\n      \\\"limit\\\": {\\n        \\\"type\\\": \\\"number\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"condition List Schema\\\",\\n    \\\"description\\\": \\\"Schema for filtering condition resources.\\\"\\n  }\\n}\",\"uri\":\"schema://condition\"}]}"
+      },
+      "raw": {
+        "item_id": "item_13",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 8,
+      "tool": "read_mcp_resource",
+      "arguments": {
+        "server": "health-record-mcp",
+        "uri": "schema://prescription"
+      },
+      "result": {
+        "text": "{\"server\":\"health-record-mcp\",\"uri\":\"schema://prescription\",\"contents\":[{\"mimeType\":\"application/json\",\"text\":\"{\\n  \\\"resource_type\\\": \\\"prescription\\\",\\n  \\\"create\\\": {\\n    \\\"oneOf\\\": [\\n      {\\n        \\\"type\\\": \\\"object\\\",\\n        \\\"properties\\\": {\\n          \\\"dependent_id\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"medication_name\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"dose\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"frequency\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"start_date\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"stop_date\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"status\\\": {\\n            \\\"type\\\": \\\"string\\\",\\n            \\\"enum\\\": [\\n              \\\"active\\\",\\n              \\\"stopped\\\",\\n              \\\"completed\\\"\\n            ]\\n          },\\n          \\\"prescriber_id\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"archived\\\": {\\n            \\\"type\\\": \\\"boolean\\\"\\n          }\\n        },\\n        \\\"required\\\": [\\n          \\\"dependent_id\\\",\\n          \\\"medication_name\\\"\\n        ],\\n        \\\"additionalProperties\\\": false,\\n        \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n      },\\n      {\\n        \\\"type\\\": \\\"array\\\",\\n        \\\"items\\\": {\\n          \\\"type\\\": \\\"object\\\",\\n          \\\"properties\\\": {\\n            \\\"dependent_id\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"medication_name\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"dose\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"frequency\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"start_date\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"stop_date\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"status\\\": {\\n              \\\"type\\\": \\\"string\\\",\\n              \\\"enum\\\": [\\n                \\\"active\\\",\\n                \\\"stopped\\\",\\n                \\\"completed\\\"\\n              ]\\n            },\\n            \\\"prescriber_id\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"archived\\\": {\\n              \\\"type\\\": \\\"boolean\\\"\\n            }\\n          },\\n          \\\"required\\\": [\\n            \\\"dependent_id\\\",\\n            \\\"medication_name\\\"\\n          ],\\n          \\\"additionalProperties\\\": false,\\n          \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n        }\\n      }\\n    ],\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"prescription Create Schema\\\",\\n    \\\"description\\\": \\\"Schema for creating prescription resources.\\\\n\\\\nSupports both single and batch creation:\\\\n- Single: Pass an object matching the schema\\\\n- Batch: Pass an array of objects matching the schema\\\\n\\\\n\\\\nEXAMPLES:\\\\n\\\\nSingle Record:\\\\n{\\\\n  \\\\\\\"dependent_id\\\\\\\": \\\\\\\"507f1f77bcf86cd799439011\\\\\\\",\\\\n  \\\\\\\"medication_name\\\\\\\": \\\\\\\"Lisinopril\\\\\\\",\\\\n  \\\\\\\"dose\\\\\\\": \\\\\\\"10mg\\\\\\\",\\\\n  \\\\\\\"frequency\\\\\\\": \\\\\\\"once daily\\\\\\\",\\\\n  \\\\\\\"status\\\\\\\": \\\\\\\"active\\\\\\\"\\\\n}\\\",\\n    \\\"examples\\\": [\\n      {\\n        \\\"dependent_id\\\": \\\"507f1f77bcf86cd799439011\\\",\\n        \\\"medication_name\\\": \\\"Lisinopril\\\",\\n        \\\"dose\\\": \\\"10mg\\\",\\n        \\\"frequency\\\": \\\"once daily\\\",\\n        \\\"status\\\": \\\"active\\\"\\n      }\\n    ]\\n  },\\n  \\\"update\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"medication_name\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"dose\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"frequency\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"start_date\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"stop_date\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"status\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"active\\\",\\n          \\\"stopped\\\",\\n          \\\"completed\\\"\\n        ]\\n      },\\n      \\\"prescriber_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"prescription Update Schema\\\",\\n    \\\"description\\\": \\\"Schema for updating prescription resources. All fields are optional. The prescription_id is passed separately in the tool call.\\\"\\n  },\\n  \\\"list\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"dependent_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"prescriber_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"status\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"active\\\",\\n          \\\"stopped\\\",\\n          \\\"completed\\\"\\n        ]\\n      },\\n      \\\"medication_name\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      },\\n      \\\"limit\\\": {\\n        \\\"type\\\": \\\"number\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"prescription List Schema\\\",\\n    \\\"description\\\": \\\"Schema for filtering prescription resources.\\\"\\n  }\\n}\",\"uri\":\"schema://prescription\"}]}"
+      },
+      "raw": {
+        "item_id": "item_15",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 9,
+      "tool": "create_resource",
+      "arguments": {
+        "resource_type": "provider",
+        "data": {
+          "name": "Dr. Linda Chen",
+          "specialty": "Primary Care",
+          "organization": "Chen Family Medicine"
+        }
+      },
+      "result": {
+        "text": "{\n  \"_id\": \"69281c224d55adfe1b5144fd\",\n  \"name\": \"Dr. Linda Chen\",\n  \"organization\": \"Chen Family Medicine\",\n  \"specialty\": \"Primary Care\",\n  \"archived\": false,\n  \"created_at\": \"2025-11-27T09:38:42.405Z\",\n  \"updated_at\": \"2025-11-27T09:38:42.405Z\",\n  \"created_by\": \"mcp\",\n  \"updated_by\": \"mcp\",\n  \"provider_id\": \"69281c224d55adfe1b5144fd\"\n}"
+      },
+      "raw": {
+        "item_id": "item_17",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 10,
+      "tool": "list_resource",
+      "arguments": {
+        "resource_type": "visit",
+        "filters": {
+          "dependent_id": "665f1f77bcf86cd799439021"
+        }
+      },
+      "result": {
+        "text": "{\n  \"count\": 0,\n  \"visits\": []\n}"
+      },
+      "raw": {
+        "item_id": "item_19",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 11,
+      "tool": "create_resource",
+      "arguments": {
+        "resource_type": "visit",
+        "duplicate_check_confirmed": true,
+        "data": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "date": "2025-11-27",
+          "provider_id": "69281c224d55adfe1b5144fd",
+          "type": "office",
+          "reason": "Right shoulder pain evaluation; dx polymyalgia rheumatica",
+          "notes": "Seen by PCP Dr. Chen for acute shoulder pain and stiffness. Exam consistent with polymyalgia rheumatica; plan to initiate prednisone taper."
+        }
+      },
+      "result": {
+        "text": "{\n  \"_id\": \"69281c284d55adfe1b5144fe\",\n  \"dependent_id\": \"665f1f77bcf86cd799439021\",\n  \"date\": \"2025-11-27\",\n  \"provider_id\": \"69281c224d55adfe1b5144fd\",\n  \"type\": \"office\",\n  \"reason\": \"Right shoulder pain evaluation; dx polymyalgia rheumatica\",\n  \"notes\": \"Seen by PCP Dr. phi:vault:PERSON:69281c28f886e63be1d3bc7d for acute shoulder pain and stiffness. Exam consistent with phi:vault:LOCATION:69281c28f886e63be1d3bc7e; plan to initiate prednisone taper.\",\n  \"archived\": false,\n  \"created_at\": \"2025-11-27T09:38:48.458Z\",\n  \"updated_at\": \"2025-11-27T09:38:48.458Z\",\n  \"created_by\": \"mcp\",\n  \"updated_by\": \"mcp\",\n  \"visit_id\": \"69281c284d55adfe1b5144fe\"\n}"
+      },
+      "raw": {
+        "item_id": "item_21",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 12,
+      "tool": "list_resource",
+      "arguments": {
+        "resource_type": "condition",
+        "filters": {
+          "dependent_id": "665f1f77bcf86cd799439021"
+        }
+      },
+      "result": {
+        "text": "{\n  \"count\": 0,\n  \"conditions\": []\n}"
+      },
+      "raw": {
+        "item_id": "item_23",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 13,
+      "tool": "create_resource",
+      "arguments": {
+        "resource_type": "condition",
+        "duplicate_check_confirmed": true,
+        "data": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "name": "Polymyalgia rheumatica",
+          "diagnosed_date": "2025-11-27",
+          "status": "active",
+          "notes": "Diagnosed after evaluation for bilateral shoulder pain and morning stiffness; plan for prednisone taper and close monitoring.",
+          "diagnosed_by": "69281c224d55adfe1b5144fd"
+        }
+      },
+      "result": {
+        "text": "{\n  \"_id\": \"69281c2e4d55adfe1b5144ff\",\n  \"dependent_id\": \"665f1f77bcf86cd799439021\",\n  \"name\": \"Polymyalgia rheumatica\",\n  \"diagnosed_date\": \"2025-11-27\",\n  \"status\": \"active\",\n  \"notes\": \"Diagnosed after evaluation for bilateral shoulder pain and morning stiffness; plan for prednisone taper and close monitoring.\",\n  \"diagnosed_by\": \"69281c224d55adfe1b5144fd\",\n  \"archived\": false,\n  \"created_at\": \"2025-11-27T09:38:54.671Z\",\n  \"updated_at\": \"2025-11-27T09:38:54.671Z\",\n  \"created_by\": \"mcp\",\n  \"updated_by\": \"mcp\",\n  \"condition_id\": \"69281c2e4d55adfe1b5144ff\"\n}"
+      },
+      "raw": {
+        "item_id": "item_25",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 14,
+      "tool": "list_resource",
+      "arguments": {
+        "resource_type": "prescription",
+        "filters": {
+          "dependent_id": "665f1f77bcf86cd799439021"
+        }
+      },
+      "result": {
+        "text": "{\n  \"count\": 0,\n  \"prescriptions\": []\n}"
+      },
+      "raw": {
+        "item_id": "item_27",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 15,
+      "tool": "create_resource",
+      "arguments": {
+        "resource_type": "prescription",
+        "duplicate_check_confirmed": true,
+        "data": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "medication_name": "Prednisone",
+          "dose": "10 mg tablets",
+          "frequency": "Take 10 mg daily, taper by 2.5 mg every 2 weeks until discontinued",
+          "start_date": "2025-11-27",
+          "status": "active",
+          "prescriber_id": "69281c224d55adfe1b5144fd"
+        }
+      },
+      "result": {
+        "text": "{\n  \"_id\": \"69281c334d55adfe1b514500\",\n  \"dependent_id\": \"665f1f77bcf86cd799439021\",\n  \"medication_name\": \"Prednisone\",\n  \"dose\": \"10 mg tablets\",\n  \"frequency\": \"Take 10 mg daily, taper by 2.5 mg every 2 weeks until discontinued\",\n  \"start_date\": \"2025-11-27\",\n  \"status\": \"active\",\n  \"prescriber_id\": \"69281c224d55adfe1b5144fd\",\n  \"archived\": false,\n  \"created_at\": \"2025-11-27T09:38:59.708Z\",\n  \"updated_at\": \"2025-11-27T09:38:59.708Z\",\n  \"created_by\": \"mcp\",\n  \"updated_by\": \"mcp\",\n  \"prescription_id\": \"69281c334d55adfe1b514500\"\n}"
+      },
+      "raw": {
+        "item_id": "item_29",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 16,
+      "tool": "read_mcp_resource",
+      "arguments": {
+        "server": "health-record-mcp",
+        "uri": "summary://dependent/665f1f77bcf86cd799439021"
+      },
+      "result": {
+        "text": "{\"server\":\"health-record-mcp\",\"uri\":\"summary://dependent/665f1f77bcf86cd799439021\",\"contents\":[{\"mimeType\":\"text/plain\",\"text\":\"No active health summary available yet. Use update_health_summary to create one.\",\"uri\":\"summary://dependent/665f1f77bcf86cd799439021\"}]}"
+      },
+      "raw": {
+        "item_id": "item_31",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 17,
+      "tool": "update_health_summary",
+      "arguments": {
+        "dependent_id": "665f1f77bcf86cd799439021",
+        "summary_text": "**Current Conditions**\n- Polymyalgia rheumatica (diagnosed 2025-11-27 by Dr. Linda Chen) after evaluation for new bilateral shoulder pain and morning stiffness; monitor stiffness response and inflammatory markers.\n\n**Medications**\n- Prednisone 10 mg each morning; taper dose by 2.5 mg every 2 weeks until discontinued per PCP instructions.\n\n**Recent Care**\n- 2025-11-27: Office visit with PCP Dr. Chen for acute shoulder pain; polymyalgia rheumatica diagnosed and prednisone taper initiated.\n\n**Follow-up & Monitoring**\n- Track pain/stiffness, jaw pain, or visual changes; contact PCP if symptoms worsen while tapering.\n- Follow up with Dr. Chen as scheduled to review taper progress and labs."
+      },
+      "result": {
+        "text": "{\n  \"success\": true,\n  \"dependent_id\": \"665f1f77bcf86cd799439021\",\n  \"updated_at\": \"2025-11-27T09:39:07.604Z\"\n}"
+      },
+      "raw": {
+        "item_id": "item_33",
+        "server": "health-record-mcp"
+      }
+    }
+  ]
+}
