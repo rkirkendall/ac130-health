@@ -1,8 +1,8 @@
 
 import { describe, it, mock } from 'node:test';
 import assert from 'node:assert';
-import { updateResource } from '../core/crud.js';
-import { PersistenceAdapter } from '../core/persistence.js';
+import { updateResource } from '../../core/crud.js';
+import { PersistenceAdapter } from '../../core/persistence.js';
 import { ObjectId } from 'mongodb';
 
 interface StubbedPersistenceOverrides {

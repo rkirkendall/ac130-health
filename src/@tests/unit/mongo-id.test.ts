@@ -1,7 +1,7 @@
 import { test, describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert';
 import { ObjectId } from 'mongodb';
-import { MongoResourcePersistence } from '../persistence/mongo-persistence.js';
+import { MongoResourcePersistence } from '../../persistence/mongo-persistence.js';
 
 // Mock Collection
 class MockCollection {
@@ -55,27 +55,30 @@ class MockCollection {
     for (const doc of this.store.values()) {
       let match = true;
       if (query && Object.keys(query).length > 0) {
-         // Simple recursion for nested queries not supported here, but basic equality yes
-         for (const [k, v] of Object.entries(query)) {
-            // Check if value is ObjectId in doc but string in query, or vice versa
-            const docVal = doc[k];
-            const queryVal = v;
-            
-            // Very basic comparison relying on toString
-            if (String(docVal) !== String(queryVal)) {
-               match = false;
-               break;
-            }
-         }
+        // Simple recursion for nested queries not supported here, but basic equality yes
+        for (const [k, v] of Object.entries(query)) {
+          // Check if value is ObjectId in doc but string in query, or vice versa
+          const docVal = doc[k];
+          const queryVal = v;
+
+          // Very basic comparison relying on toString
+          if (String(docVal) !== String(queryVal)) {
+            match = false;
+            break;
+          }
+        }
       }
       if (match) results.push(doc);
     }
 
-    return {
-      limit: (n: number) => ({
-        toArray: async () => results.slice(0, n)
-      })
-    };
+    const cursor: any = {};
+    cursor.sort = () => cursor;
+    cursor.limit = (n: number) => ({
+      toArray: async () => results.slice(0, n),
+    });
+    cursor.toArray = async () => results;
+
+    return cursor;
   }
 }
 

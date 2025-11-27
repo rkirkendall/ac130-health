@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
 import { RECORD_TYPES } from '@/lib/types';
+import { selectDbNameFromHeaders } from '@/lib/db-config';
 
 export async function GET(
   request: Request,
@@ -10,7 +11,7 @@ export async function GET(
   try {
     const { dependentId } = await params;
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
     
     const dependentObjectId = new ObjectId(dependentId);
     

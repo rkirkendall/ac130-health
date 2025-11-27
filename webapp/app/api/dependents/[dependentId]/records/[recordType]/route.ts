@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { selectDbNameFromHeaders } from '@/lib/db-config';
 
 const RECORD_ID_FIELD_BY_COLLECTION: Record<string, string> = {
   visits: 'visit_id',
@@ -67,7 +68,7 @@ export async function GET(
   try {
     const { dependentId, recordType } = await params;
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
     
     const dependentObjectId = new ObjectId(dependentId);
     
@@ -139,7 +140,7 @@ export async function POST(
     const body = await request.json();
 
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
 
     const dependentObjectId = new ObjectId(dependentId);
 
@@ -188,7 +189,7 @@ export async function PUT(
     }
 
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
 
     const recordObjectId = new ObjectId(recordId);
     const dependentObjectId = new ObjectId(dependentId);
@@ -229,7 +230,7 @@ export async function DELETE(
     }
 
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
 
     const recordObjectId = new ObjectId(id);
     const dependentObjectId = new ObjectId(dependentId);

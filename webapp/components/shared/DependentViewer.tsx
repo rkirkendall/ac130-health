@@ -42,9 +42,11 @@ import {
   formatTitleCandidate,
   humanNameToString,
 } from './utils';
+import { TEST_DB_HEADER } from '@/lib/db-config';
 
 interface DependentViewerProps {
   apiBaseUrl?: string;
+  useTestData?: boolean;
 }
 
 type PhiState = 'hidden' | 'loading' | 'visible' | 'error';
@@ -329,7 +331,7 @@ function PhiTextRenderer({ text, phiMap }: { text: string; phiMap?: Record<strin
   );
 }
 
-export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
+export function DependentViewer({ apiBaseUrl = '', useTestData = false }: DependentViewerProps) {
   const router = useRouter();
   const [dependents, setDependents] = useState<Dependent[]>([]);
   const [selectedDependent, setSelectedDependent] = useState<string>('');
@@ -366,6 +368,26 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const [showDependentDeleteDialog, setShowDependentDeleteDialog] = useState(false);
   const [dependentDeleteLoading, setDependentDeleteLoading] = useState(false);
   const [dependentDeleteError, setDependentDeleteError] = useState<string | null>(null);
+
+  const applyTestHeaders = useCallback(
+    (init?: RequestInit): RequestInit | undefined => {
+      if (!useTestData) {
+        return init;
+      }
+      const headers = new Headers(init?.headers ?? {});
+      headers.set(TEST_DB_HEADER, '1');
+      return {
+        ...init,
+        headers,
+      };
+    },
+    [useTestData]
+  );
+
+  const fetchWithHeaders = useCallback(
+    (input: Parameters<typeof fetch>[0], init?: RequestInit) => fetch(input, applyTestHeaders(init)),
+    [applyTestHeaders]
+  );
   const resetProfileForm = useCallback(() => {
     setProfileForm(createEmptyProfileForm());
     setProfileError(null);
@@ -432,7 +454,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     }
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/dependents`, {
+      const response = await fetchWithHeaders(`${apiBaseUrl}/api/dependents`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -529,7 +551,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   }, [profileMenuOpen]);
 
   useEffect(() => {
-    fetch(`${apiBaseUrl}/api/dependents`)
+    fetchWithHeaders(`${apiBaseUrl}/api/dependents`)
       .then(parseJsonResponse<Dependent[]>)
       .then(data => {
         const list = Array.isArray(data) ? data : [];
@@ -541,7 +563,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
         console.error('Error fetching dependents:', err);
         setLoading(false);
       });
-  }, [apiBaseUrl, handleSelectDependent]);
+  }, [apiBaseUrl, handleSelectDependent, fetchWithHeaders]);
 
   useEffect(() => {
     if (!selectedDependent) {
@@ -550,7 +572,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
 
     let cancelled = false;
 
-    fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}/counts`)
+    fetchWithHeaders(`${apiBaseUrl}/api/dependents/${selectedDependent}/counts`)
       .then(parseJsonResponse<RecordCount[]>)
       .then(data => {
         if (cancelled) {
@@ -570,16 +592,18 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     return () => {
       cancelled = true;
     };
-  }, [selectedDependent, apiBaseUrl]);
+  }, [selectedDependent, apiBaseUrl, fetchWithHeaders]);
 
   useEffect(() => {
     if (selectedDependent && selectedRecordType) {
-      fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`)
+      fetchWithHeaders(
+        `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`
+      )
         .then(parseJsonResponse<any[]>)
         .then(data => setRecords(Array.isArray(data) ? data : []))
         .catch(err => console.error('Error fetching records:', err));
     }
-  }, [selectedDependent, selectedRecordType, apiBaseUrl]);
+  }, [selectedDependent, selectedRecordType, apiBaseUrl, fetchWithHeaders]);
 
   const selectedDependentDetails = useMemo(
     () => dependents.find(dependent => dependent._id === selectedDependent),
@@ -604,7 +628,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     setPhiError(null);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/phi`
       );
       const data = await parseJsonResponse<PhiVaultEntry>(response);
@@ -633,7 +657,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     setPhiModalError(null);
 
     try {
-      const response = await fetch(
+      const response = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/phi`,
         {
           method: 'POST',
@@ -898,7 +922,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
   const handleCreateRecord = async (data: Record<string, any>) => {
     setCrudLoading(true);
     try {
-      const response = await fetch(
+      const response = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`,
         {
           method: 'POST',
@@ -912,14 +936,14 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
       }
 
       // Refresh records
-      const recordsResponse = await fetch(
+      const recordsResponse = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`
       );
       const updatedRecords = await parseJsonResponse<any[]>(recordsResponse);
       setRecords(Array.isArray(updatedRecords) ? updatedRecords : []);
 
       // Refresh counts
-      const countsResponse = await fetch(
+      const countsResponse = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/counts`
       );
       const updatedCounts = await parseJsonResponse<RecordCount[]>(countsResponse);
@@ -938,7 +962,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
 
     setCrudLoading(true);
     try {
-      const response = await fetch(
+      const response = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`,
         {
           method: 'PUT',
@@ -952,7 +976,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
       }
 
       // Refresh records
-      const recordsResponse = await fetch(
+      const recordsResponse = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`
       );
       const updatedRecords = await parseJsonResponse<any[]>(recordsResponse);
@@ -970,7 +994,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
 
     setCrudLoading(true);
     try {
-      const response = await fetch(
+      const response = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}?id=${selectedRecordForDelete._id}`,
         { method: 'DELETE' }
       );
@@ -980,14 +1004,14 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
       }
 
       // Refresh records
-      const recordsResponse = await fetch(
+      const recordsResponse = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/records/${selectedRecordType}`
       );
       const updatedRecords = await parseJsonResponse<any[]>(recordsResponse);
       setRecords(Array.isArray(updatedRecords) ? updatedRecords : []);
 
       // Refresh counts
-      const countsResponse = await fetch(
+      const countsResponse = await fetchWithHeaders(
         `${apiBaseUrl}/api/dependents/${selectedDependent}/counts`
       );
       const updatedCounts = await parseJsonResponse<RecordCount[]>(countsResponse);
@@ -1046,7 +1070,7 @@ export function DependentViewer({ apiBaseUrl = '' }: DependentViewerProps) {
     setDependentDeleteError(null);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/dependents/${selectedDependent}`, {
+      const response = await fetchWithHeaders(`${apiBaseUrl}/api/dependents/${selectedDependent}`, {
         method: 'DELETE',
       });
 

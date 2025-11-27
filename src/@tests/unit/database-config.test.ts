@@ -1,7 +1,7 @@
 import { beforeEach, afterEach, describe, it } from 'node:test';
 import assert from 'node:assert';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { Database } from '../db.js';
+import { Database } from '../../db.js';
 
 describe('Database configuration', () => {
   let mongod: MongoMemoryServer;

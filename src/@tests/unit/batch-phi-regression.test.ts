@@ -2,9 +2,9 @@ import { beforeEach, afterEach, describe, it } from 'node:test';
 import assert from 'node:assert';
 import { MongoClient } from 'mongodb';
 import { MongoMemoryServer } from 'mongodb-memory-server';
-import { MongoPersistenceAdapter } from '../persistence/mongo-persistence.js';
-import { createResource, listResource } from '../core/crud.js';
-import * as vault from '../core/phi/vault.js';
+import { MongoPersistenceAdapter } from '../../persistence/mongo-persistence.js';
+import { createResource, listResource } from '../../core/crud.js';
+import * as vault from '../../core/phi/vault.js';
 
 const originalAnalyzeText = vault._deps.analyzeText;
 

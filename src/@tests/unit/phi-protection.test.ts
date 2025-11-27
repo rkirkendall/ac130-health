@@ -1,8 +1,8 @@
 import { test, describe, it, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert';
 import { ObjectId } from 'mongodb';
-import * as vault from '../core/phi/vault.js';
-import { PhiVaultAdapter, PhiVaultEntry } from '../core/phi/types.js';
+import * as vault from '../../core/phi/vault.js';
+import { PhiVaultAdapter, PhiVaultEntry } from '../../core/phi/types.js';
 
 const originalAnalyzeText = vault._deps.analyzeText;
 

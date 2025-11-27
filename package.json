@@ -29,7 +29,8 @@
     "start": "tsx src/index.ts",
     "watch": "tsc --watch",
     "migrate": "tsx scripts/migrate.ts",
-    "test": "c8 --reporter=text --reporter=lcov tsx --test $(find src/tests -name '*.test.ts')",
+    "test": "c8 --reporter=text --reporter=lcov tsx --test $(find src/@tests/unit -name '*.test.ts')",
+    "test:llm": "tsx src/@tests/llm-smoke/run-chat-tests.ts",
     "test:presidio": "tsx src/presidio-e2e-test.ts",
     "prepare": "npm run build"
   },

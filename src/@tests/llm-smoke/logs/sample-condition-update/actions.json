@@ -1,0 +1,150 @@
+{
+  "scenario": "sample-condition-update",
+  "actions": [
+    {
+      "order": 1,
+      "tool": "list_mcp_resource_templates",
+      "arguments": {},
+      "result": {
+        "text": "{\"resourceTemplates\":[]}"
+      },
+      "raw": {
+        "item_id": "item_3",
+        "server": "codex"
+      }
+    },
+    {
+      "order": 2,
+      "tool": "list_mcp_resources",
+      "arguments": {},
+      "result": {
+        "text": "{\"resources\":[{\"server\":\"health-record-mcp\",\"description\":\"Current health summary for a dependent\",\"mimeType\":\"text/plain\",\"name\":\"Active Health Summary\",\"uri\":\"summary://dependent/{dependent_id}\"},{\"server\":\"health-record-mcp\",\"description\":\"Standard outline and writing guidance for dependent health summaries.\",\"mimeType\":\"text/markdown\",\"name\":\"Health Summary Outline\",\"uri\":\"guide://health_summary/outline\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Profiles (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"dependent Schemas\",\"uri\":\"schema://dependent\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Healthcare providers (create/update)\",\"mimeType\":\"application/json\",\"name\":\"provider Schemas\",\"uri\":\"schema://provider\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Visits & encounters (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"visit Schemas\",\"uri\":\"schema://visit\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Prescriptions (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"prescription Schemas\",\"uri\":\"schema://prescription\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Lab orders & results (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"lab Schemas\",\"uri\":\"schema://lab\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Treatment plans (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"treatment Schemas\",\"uri\":\"schema://treatment\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Conditions & diagnoses (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"condition Schemas\",\"uri\":\"schema://condition\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Allergies (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"allergy Schemas\",\"uri\":\"schema://allergy\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Immunizations & vaccinations (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"immunization Schemas\",\"uri\":\"schema://immunization\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Vital signs (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"vital_signs Schemas\",\"uri\":\"schema://vital_signs\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Procedures & surgeries (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"procedure Schemas\",\"uri\":\"schema://procedure\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Imaging & radiology (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"imaging Schemas\",\"uri\":\"schema://imaging\"},{\"server\":\"health-record-mcp\",\"description\":\"JSON Schemas for Insurance coverage (create/update/list)\",\"mimeType\":\"application/json\",\"name\":\"insurance Schemas\",\"uri\":\"schema://insurance\"}]}"
+      },
+      "raw": {
+        "item_id": "item_5",
+        "server": "codex"
+      }
+    },
+    {
+      "order": 3,
+      "tool": "list_resource",
+      "arguments": {
+        "resource_type": "dependent"
+      },
+      "result": {
+        "text": "{\n  \"count\": 1,\n  \"dependents\": [\n    {\n      \"_id\": \"665f1f77bcf86cd799439021\",\n      \"dependent_id\": \"665f1f77bcf86cd799439021\",\n      \"record_identifier\": \"father\",\n      \"first_name\": \"John\",\n      \"last_name\": \"Doe\",\n      \"relationship\": \"father\",\n      \"created_at\": \"2025-01-01T00:00:00Z\"\n    }\n  ]\n}"
+      },
+      "raw": {
+        "item_id": "item_7",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 4,
+      "tool": "list_resource",
+      "arguments": {
+        "resource_type": "condition",
+        "filters": {
+          "dependent_id": "665f1f77bcf86cd799439021"
+        }
+      },
+      "result": {
+        "text": "{\n  \"count\": 0,\n  \"conditions\": []\n}"
+      },
+      "raw": {
+        "item_id": "item_9",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 5,
+      "tool": "read_mcp_resource",
+      "arguments": {
+        "server": "health-record-mcp",
+        "uri": "schema://condition"
+      },
+      "result": {
+        "text": "{\"server\":\"health-record-mcp\",\"uri\":\"schema://condition\",\"contents\":[{\"mimeType\":\"application/json\",\"text\":\"{\\n  \\\"resource_type\\\": \\\"condition\\\",\\n  \\\"create\\\": {\\n    \\\"oneOf\\\": [\\n      {\\n        \\\"type\\\": \\\"object\\\",\\n        \\\"properties\\\": {\\n          \\\"dependent_id\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"name\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"diagnosed_date\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"resolved_date\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"status\\\": {\\n            \\\"type\\\": \\\"string\\\",\\n            \\\"enum\\\": [\\n              \\\"active\\\",\\n              \\\"resolved\\\",\\n              \\\"chronic\\\"\\n            ]\\n          },\\n          \\\"severity\\\": {\\n            \\\"type\\\": \\\"string\\\",\\n            \\\"enum\\\": [\\n              \\\"mild\\\",\\n              \\\"moderate\\\",\\n              \\\"severe\\\"\\n            ]\\n          },\\n          \\\"notes\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"diagnosed_by\\\": {\\n            \\\"type\\\": \\\"string\\\"\\n          },\\n          \\\"archived\\\": {\\n            \\\"type\\\": \\\"boolean\\\"\\n          }\\n        },\\n        \\\"required\\\": [\\n          \\\"dependent_id\\\",\\n          \\\"name\\\"\\n        ],\\n        \\\"additionalProperties\\\": false,\\n        \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n      },\\n      {\\n        \\\"type\\\": \\\"array\\\",\\n        \\\"items\\\": {\\n          \\\"type\\\": \\\"object\\\",\\n          \\\"properties\\\": {\\n            \\\"dependent_id\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"name\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"diagnosed_date\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"resolved_date\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"status\\\": {\\n              \\\"type\\\": \\\"string\\\",\\n              \\\"enum\\\": [\\n                \\\"active\\\",\\n                \\\"resolved\\\",\\n                \\\"chronic\\\"\\n              ]\\n            },\\n            \\\"severity\\\": {\\n              \\\"type\\\": \\\"string\\\",\\n              \\\"enum\\\": [\\n                \\\"mild\\\",\\n                \\\"moderate\\\",\\n                \\\"severe\\\"\\n              ]\\n            },\\n            \\\"notes\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"diagnosed_by\\\": {\\n              \\\"type\\\": \\\"string\\\"\\n            },\\n            \\\"archived\\\": {\\n              \\\"type\\\": \\\"boolean\\\"\\n            }\\n          },\\n          \\\"required\\\": [\\n            \\\"dependent_id\\\",\\n            \\\"name\\\"\\n          ],\\n          \\\"additionalProperties\\\": false,\\n          \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\"\\n        }\\n      }\\n    ],\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"condition Create Schema\\\",\\n    \\\"description\\\": \\\"Schema for creating condition resources.\\\\n\\\\nSupports both single and batch creation:\\\\n- Single: Pass an object matching the schema\\\\n- Batch: Pass an array of objects matching the schema\\\\n\\\\n\\\\nEXAMPLES:\\\\n\\\\nSingle Record:\\\\n{\\\\n  \\\\\\\"dependent_id\\\\\\\": \\\\\\\"507f1f77bcf86cd799439011\\\\\\\",\\\\n  \\\\\\\"name\\\\\\\": \\\\\\\"Hypertension\\\\\\\",\\\\n  \\\\\\\"status\\\\\\\": \\\\\\\"active\\\\\\\",\\\\n  \\\\\\\"diagnosed_date\\\\\\\": \\\\\\\"2023-05-10\\\\\\\"\\\\n}\\\",\\n    \\\"examples\\\": [\\n      {\\n        \\\"dependent_id\\\": \\\"507f1f77bcf86cd799439011\\\",\\n        \\\"name\\\": \\\"Hypertension\\\",\\n        \\\"status\\\": \\\"active\\\",\\n        \\\"diagnosed_date\\\": \\\"2023-05-10\\\"\\n      }\\n    ]\\n  },\\n  \\\"update\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"name\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"diagnosed_date\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"resolved_date\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"status\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"active\\\",\\n          \\\"resolved\\\",\\n          \\\"chronic\\\"\\n        ]\\n      },\\n      \\\"severity\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"mild\\\",\\n          \\\"moderate\\\",\\n          \\\"severe\\\"\\n        ]\\n      },\\n      \\\"notes\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"diagnosed_by\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"condition Update Schema\\\",\\n    \\\"description\\\": \\\"Schema for updating condition resources. All fields are optional. The condition_id is passed separately in the tool call.\\\"\\n  },\\n  \\\"list\\\": {\\n    \\\"type\\\": \\\"object\\\",\\n    \\\"properties\\\": {\\n      \\\"dependent_id\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"diagnosed_by\\\": {\\n        \\\"type\\\": \\\"string\\\"\\n      },\\n      \\\"status\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"active\\\",\\n          \\\"resolved\\\",\\n          \\\"chronic\\\"\\n        ]\\n      },\\n      \\\"severity\\\": {\\n        \\\"type\\\": \\\"string\\\",\\n        \\\"enum\\\": [\\n          \\\"mild\\\",\\n          \\\"moderate\\\",\\n          \\\"severe\\\"\\n        ]\\n      },\\n      \\\"archived\\\": {\\n        \\\"type\\\": \\\"boolean\\\"\\n      },\\n      \\\"limit\\\": {\\n        \\\"type\\\": \\\"number\\\"\\n      }\\n    },\\n    \\\"additionalProperties\\\": false,\\n    \\\"$schema\\\": \\\"http://json-schema.org/draft-07/schema#\\\",\\n    \\\"title\\\": \\\"condition List Schema\\\",\\n    \\\"description\\\": \\\"Schema for filtering condition resources.\\\"\\n  }\\n}\",\"uri\":\"schema://condition\"}]}"
+      },
+      "raw": {
+        "item_id": "item_11",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 6,
+      "tool": "create_resource",
+      "arguments": {
+        "resource_type": "condition",
+        "data": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "name": "Hypertension",
+          "status": "chronic",
+          "diagnosed_date": "2025-11-27",
+          "diagnosed_by": "Primary care physician",
+          "notes": "Diagnosed during today's PCP visit after elevated in-office blood pressure readings. Home monitoring and follow-up plan pending."
+        }
+      },
+      "result": {
+        "text": "Error: Duplicate check required for condition records.\nCall list_resource first to confirm an identical record does not already exist, then retry create_resource with duplicate_check_confirmed=true.\nRecommended filters when checking for duplicates: dependent_id, name, status"
+      },
+      "raw": {
+        "item_id": "item_15",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 7,
+      "tool": "create_resource",
+      "arguments": {
+        "resource_type": "condition",
+        "data": {
+          "dependent_id": "665f1f77bcf86cd799439021",
+          "name": "Hypertension",
+          "status": "chronic",
+          "diagnosed_date": "2025-11-27",
+          "diagnosed_by": "Primary care physician",
+          "notes": "Diagnosed during today's PCP visit after elevated in-office blood pressure readings. Home monitoring and follow-up plan pending."
+        },
+        "duplicate_check_confirmed": true
+      },
+      "result": {
+        "text": "{\n  \"_id\": \"69281093b488632b484305e8\",\n  \"dependent_id\": \"665f1f77bcf86cd799439021\",\n  \"name\": \"Hypertension\",\n  \"diagnosed_date\": \"2025-11-27\",\n  \"status\": \"chronic\",\n  \"notes\": \"Diagnosed during phi:vault:DATE_TIME:69281093c42c3943f158a1c4's PCP visit after elevated in-office blood pressure readings. Home monitoring and follow-up plan pending.\",\n  \"diagnosed_by\": \"Primary care physician\",\n  \"archived\": false,\n  \"created_at\": \"2025-11-27T08:49:23.504Z\",\n  \"updated_at\": \"2025-11-27T08:49:23.504Z\",\n  \"created_by\": \"mcp\",\n  \"updated_by\": \"mcp\",\n  \"condition_id\": \"69281093b488632b484305e8\"\n}"
+      },
+      "raw": {
+        "item_id": "item_17",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 8,
+      "tool": "read_mcp_resource",
+      "arguments": {
+        "server": "health-record-mcp",
+        "uri": "summary://dependent/665f1f77bcf86cd799439021"
+      },
+      "result": {
+        "text": "{\"server\":\"health-record-mcp\",\"uri\":\"summary://dependent/665f1f77bcf86cd799439021\",\"contents\":[{\"mimeType\":\"text/plain\",\"text\":\"No active health summary available yet. Use update_health_summary to create one.\",\"uri\":\"summary://dependent/665f1f77bcf86cd799439021\"}]}"
+      },
+      "raw": {
+        "item_id": "item_20",
+        "server": "health-record-mcp"
+      }
+    },
+    {
+      "order": 9,
+      "tool": "update_health_summary",
+      "arguments": {
+        "dependent_id": "665f1f77bcf86cd799439021",
+        "summary_text": "John Doe (father) was diagnosed with chronic hypertension at his PCP visit on 2025-11-27 after repeated elevated in-office blood pressures. No prior antihypertensive medications or related complications are documented yet. He was advised to begin home blood-pressure monitoring and coordinate a follow-up visit to initiate pharmacologic therapy if readings remain high. Reinforce heart-healthy diet, exercise, weight control, and limit sodium/alcohol. Pending tasks: track home BP logs, schedule PCP follow-up, and discuss cardiovascular risk labs if not done recently."
+      },
+      "result": {
+        "text": "{\n  \"success\": true,\n  \"dependent_id\": \"665f1f77bcf86cd799439021\",\n  \"updated_at\": \"2025-11-27T08:49:31.846Z\"\n}"
+      },
+      "raw": {
+        "item_id": "item_22",
+        "server": "health-record-mcp"
+      }
+    }
+  ]
+}

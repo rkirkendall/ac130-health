@@ -3,9 +3,9 @@ import { test, describe, it, beforeEach } from 'node:test';
 import assert from 'node:assert';
 import { ObjectId } from 'mongodb';
 import { z } from 'zod';
-import { updateResource } from '../core/crud.js';
-import { RESOURCE_REGISTRY } from '../core/resource-registry.js';
-import { UpdateVisitSchema } from '../core/types.js';
+import { updateResource } from '../../core/crud.js';
+import { RESOURCE_REGISTRY } from '../../core/resource-registry.js';
+import { UpdateVisitSchema } from '../../core/types.js';
 
 // Mock Persistence Adapter
 class MockPersistenceAdapter {

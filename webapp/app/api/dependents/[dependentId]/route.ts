@@ -3,11 +3,12 @@ import { ObjectId } from 'mongodb';
 
 import clientPromise from '@/lib/mongodb';
 import { RECORD_TYPES } from '@/lib/types';
+import { selectDbNameFromHeaders } from '@/lib/db-config';
 
 const CASCADE_COLLECTIONS = Array.from(new Set(RECORD_TYPES.map(({ type }) => type)));
 
 export async function DELETE(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ dependentId: string }> }
 ) {
   try {
@@ -22,7 +23,7 @@ export async function DELETE(
     }
 
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
     const dependentObjectId = new ObjectId(dependentId);
 
     const deletedDependent = await db

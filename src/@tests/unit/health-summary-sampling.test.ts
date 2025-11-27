@@ -1,9 +1,9 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import type { PersistenceAdapter, ResourcePersistence } from '../core/persistence.js';
-import type { PhiVaultAdapter, PhiVaultEntry } from '../core/phi/types.js';
-import { RESOURCE_REGISTRY } from '../core/resource-registry.js';
-import { __healthSummaryInternals } from '../core/crud.js';
+import type { PersistenceAdapter, ResourcePersistence } from '../../core/persistence.js';
+import type { PhiVaultAdapter, PhiVaultEntry } from '../../core/phi/types.js';
+import { RESOURCE_REGISTRY } from '../../core/resource-registry.js';
+import { __healthSummaryInternals } from '../../core/crud.js';
 
 const {
   buildDependentSnapshot,

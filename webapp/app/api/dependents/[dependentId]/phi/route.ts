@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
 import { ObjectId } from 'mongodb';
+import { selectDbNameFromHeaders } from '@/lib/db-config';
 
 const toDbDependentId = (value: string) => {
   if (ObjectId.isValid(value)) {
@@ -16,7 +17,7 @@ export async function GET(
   try {
     const { dependentId } = await params;
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
 
     const dependentKey = toDbDependentId(dependentId);
     const phiEntry = await db.collection('phi_vault').findOne({
@@ -104,7 +105,7 @@ export async function POST(
     }
 
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
     const dependentKey = toDbDependentId(dependentId);
 
     const phiCollection = db.collection('phi_vault');

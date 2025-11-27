@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import clientPromise from '@/lib/mongodb';
+import { selectDbNameFromHeaders } from '@/lib/db-config';
 
 const toTrimmedString = (value: unknown): string | undefined => {
   if (typeof value !== 'string') {
@@ -107,10 +108,10 @@ const normalizePhiPayload = (payload: unknown) => {
   return Object.keys(phi).length > 0 ? phi : undefined;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
 
     const dependents = await db
       .collection('dependents')
@@ -143,7 +144,7 @@ export async function POST(request: Request) {
     const phiPayload = normalizePhiPayload(body.phi);
 
     const client = await clientPromise;
-    const db = client.db('health_record');
+    const db = client.db(selectDbNameFromHeaders(request.headers));
     const now = new Date();
 
     const dependentDoc: Record<string, any> = {
