@@ -103,6 +103,7 @@ const HIDDEN_FIELD_KEYS = new Set([
   'created_at',
   'updated_at',
   'archived',
+  '_phi_resolved',
 ]);
 
 const RECORD_TYPE_ORDER = [
@@ -299,33 +300,56 @@ const getRecordTitle = (
   );
 };
 
-function PhiTextRenderer({ text, phiMap }: { text: string; phiMap?: Record<string, string> }) {
-  if (!text) return null;
-  if (!phiMap) return <>{text}</>;
+const formatPhiTokenLabel = (type?: string) => {
+  if (!type) {
+    return 'Protected info';
+  }
 
-  const parts = text.split(/(phi:vault(?::[A-Z_]+)?:[0-9a-f]{24})/g);
+  return `Protected ${type
+    .split('_')
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ')}`;
+};
+
+function PhiTextRenderer({
+  text,
+  phiMap,
+}: {
+  text?: string | number | null;
+  phiMap?: Record<string, string>;
+}) {
+  if (text === null || text === undefined) {
+    return null;
+  }
+
+  const value = typeof text === 'string' ? text : String(text);
+
+  if (!value) {
+    return null;
+  }
+
+  const parts = value.split(/(phi:vault(?::[A-Z_]+)?:[0-9a-f]{24})/g);
 
   return (
     <>
       {parts.map((part, index) => {
-        if (part.startsWith('phi:vault:')) {
+        if (part.startsWith('phi:vault')) {
           const segments = part.split(':');
           const id = segments[segments.length - 1];
-          const value = phiMap[id];
+          const type = segments.length === 4 ? segments[2] : undefined;
+          const resolved = id && phiMap ? phiMap[id] : undefined;
 
-          if (value) {
-            return (
-              <span
-                key={index}
-                className="mx-0.5 inline-flex items-center rounded border border-dashed border-slate-400 bg-slate-100 px-1.5 py-0 text-sm font-medium text-slate-900 select-all"
-                title="Protected Health Information"
-              >
-                {value}
-              </span>
-            );
-          }
+          return (
+            <span
+              key={`phi-token-${index}-${id ?? 'unknown'}`}
+              className="mx-0.5 inline-flex items-center rounded border border-dashed border-slate-400 bg-slate-100 px-1.5 py-0 text-sm font-medium text-slate-900 select-all"
+              title="Protected Health Information"
+            >
+              {resolved ?? formatPhiTokenLabel(type)}
+            </span>
+          );
         }
-        return <Fragment key={index}>{part}</Fragment>;
+        return <Fragment key={`phi-text-${index}`}>{part}</Fragment>;
       })}
     </>
   );
@@ -1381,115 +1405,167 @@ const renderProfile = () => {
                 </Card>
               ) : isLabRecordType(selectedRecordType) ? (
                 <div className="space-y-4">
-                  {records.map((record, index) => (
-                    <Card key={record._id || index}>
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <CardTitle className="text-lg">{record.test_name}</CardTitle>
-                            <div className="flex gap-4 text-sm text-muted-foreground mt-1">
-                          {record.result_date && (
-                            <span>Date: {formatDateValue(record.result_date) ?? record.result_date}</span>
-                          )}
-                          {record.status && <span>Status: {record.status}</span>}
+                  {records.map((record, index) => {
+                    const labTitle = record.test_name || record.title || `Lab ${index + 1}`;
+
+                    return (
+                      <Card key={record._id || index}>
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <CardTitle className="text-lg">
+                                <PhiTextRenderer text={labTitle} phiMap={record._phi_resolved} />
+                              </CardTitle>
+                              <div className="flex gap-4 text-sm text-muted-foreground mt-1">
+                                {record.result_date && (
+                                  <span>
+                                    Date: {formatDateValue(record.result_date) ?? record.result_date}
+                                  </span>
+                                )}
+                                {record.status && (
+                                  <span>
+                                    Status:{' '}
+                                    <PhiTextRenderer text={record.status} phiMap={record._phi_resolved} />
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Edit record"
+                                onClick={() => openEditForm(record)}
+                                disabled={crudLoading}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Delete record"
+                                onClick={() => openDeleteConfirmation(record)}
+                                disabled={crudLoading}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              aria-label="Edit record"
-                              onClick={() => openEditForm(record)}
-                              disabled={crudLoading}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              aria-label="Delete record"
-                              onClick={() => openDeleteConfirmation(record)}
-                              disabled={crudLoading}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      </CardHeader>
-                      <CardContent>
-                        {record.results && Array.isArray(record.results) && record.results.length > 0 ? (
-                          <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr className="border-b">
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Test</th>
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Value</th>
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Unit</th>
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Reference Range</th>
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Flag</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {record.results.map((result: any, idx: number) => (
-                                  <tr key={idx} className="border-b last:border-0">
-                                    <td className="py-2 px-3 text-sm">{result.test}</td>
-                                    <td className="py-2 px-3 text-sm font-medium">{result.value ?? 'N/A'}</td>
-                                    <td className="py-2 px-3 text-sm">{result.unit ?? ''}</td>
-                                    <td className="py-2 px-3 text-sm text-muted-foreground">
-                                      {result.reference_range ?? 'N/A'}
-                                    </td>
-                                    <td className="py-2 px-3 text-sm">
-                                      {result.flag && (
-                                        <span
-                                          className={`px-2 py-1 rounded text-xs font-medium ${
-                                            result.flag.toLowerCase() === 'high'
-                                              ? 'bg-red-100 text-red-800'
-                                              : result.flag.toLowerCase() === 'low'
-                                              ? 'bg-blue-100 text-blue-800'
-                                              : 'bg-yellow-100 text-yellow-800'
-                                          }`}
-                                        >
-                                          {result.flag}
-                                        </span>
-                                      )}
-                                    </td>
+                        </CardHeader>
+                        <CardContent>
+                          {record.results && Array.isArray(record.results) && record.results.length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-collapse">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Test</th>
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Value</th>
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Unit</th>
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Reference Range</th>
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Flag</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : record.components && Array.isArray(record.components) && record.components.length > 0 ? (
-                          <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                              <thead>
-                                <tr className="border-b">
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Component</th>
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Value</th>
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Unit</th>
-                                  <th className="text-left py-2 px-3 text-sm font-medium">Reference Range</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {record.components.map((component: any, idx: number) => (
-                                  <tr key={idx} className="border-b last:border-0">
-                                    <td className="py-2 px-3 text-sm">{component.name}</td>
-                                    <td className="py-2 px-3 text-sm font-medium">{component.value ?? 'N/A'}</td>
-                                    <td className="py-2 px-3 text-sm">{component.unit ?? ''}</td>
-                                    <td className="py-2 px-3 text-sm text-muted-foreground">
-                                      {component.reference_range ?? 'N/A'}
-                                    </td>
+                                </thead>
+                                <tbody>
+                                  {record.results.map((result: any, idx: number) => (
+                                    <tr key={idx} className="border-b last:border-0">
+                                      <td className="py-2 px-3 text-sm">
+                                        <PhiTextRenderer
+                                          text={result.test ?? 'N/A'}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-sm font-medium">
+                                        <PhiTextRenderer
+                                          text={result.value ?? 'N/A'}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-sm">
+                                        <PhiTextRenderer
+                                          text={result.unit ?? ''}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-sm text-muted-foreground">
+                                        <PhiTextRenderer
+                                          text={result.reference_range ?? 'N/A'}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-sm">
+                                        {result.flag && (
+                                          <span
+                                            className={`px-2 py-1 rounded text-xs font-medium ${
+                                              result.flag.toLowerCase() === 'high'
+                                                ? 'bg-red-100 text-red-800'
+                                                : result.flag.toLowerCase() === 'low'
+                                                ? 'bg-blue-100 text-blue-800'
+                                                : 'bg-yellow-100 text-yellow-800'
+                                            }`}
+                                          >
+                                            <PhiTextRenderer
+                                              text={result.flag}
+                                              phiMap={record._phi_resolved}
+                                            />
+                                          </span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : record.components && Array.isArray(record.components) && record.components.length > 0 ? (
+                            <div className="overflow-x-auto">
+                              <table className="w-full border-collapse">
+                                <thead>
+                                  <tr className="border-b">
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Component</th>
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Value</th>
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Unit</th>
+                                    <th className="text-left py-2 px-3 text-sm font-medium">Reference Range</th>
                                   </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ) : (
-                          <p className="text-muted-foreground">No results available</p>
-                        )}
-                      </CardContent>
-                    </Card>
-                  ))}
+                                </thead>
+                                <tbody>
+                                  {record.components.map((component: any, idx: number) => (
+                                    <tr key={idx} className="border-b last:border-0">
+                                      <td className="py-2 px-3 text-sm">
+                                        <PhiTextRenderer
+                                          text={component.name}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-sm font-medium">
+                                        <PhiTextRenderer
+                                          text={component.value ?? 'N/A'}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-sm">
+                                        <PhiTextRenderer
+                                          text={component.unit ?? ''}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                      <td className="py-2 px-3 text-sm text-muted-foreground">
+                                        <PhiTextRenderer
+                                          text={component.reference_range ?? 'N/A'}
+                                          phiMap={record._phi_resolved}
+                                        />
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground">No results available</p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -1501,7 +1577,12 @@ const renderProfile = () => {
                         <CardHeader>
                           <div className="flex items-start justify-between">
                             <div>
-                              <CardTitle className="text-lg">{titleCandidate}</CardTitle>
+                              <CardTitle className="text-lg">
+                                <PhiTextRenderer
+                                  text={titleCandidate}
+                                  phiMap={record._phi_resolved}
+                                />
+                              </CardTitle>
                               <p className="text-sm text-muted-foreground">
                                 Updated {formatDateValue(record.updated_at) ?? 'N/A'}
                               </p>
@@ -1546,7 +1627,12 @@ const renderProfile = () => {
                                   <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     {label}
                                   </p>
-                                  <p className="text-sm whitespace-pre-line">{formattedValue}</p>
+                                  <p className="text-sm whitespace-pre-line">
+                                    <PhiTextRenderer
+                                      text={formattedValue}
+                                      phiMap={record._phi_resolved}
+                                    />
+                                  </p>
                                 </div>
                               );
                             })}

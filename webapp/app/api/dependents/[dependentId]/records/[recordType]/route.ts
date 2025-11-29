@@ -28,6 +28,42 @@ const IMMUTABLE_FIELDS = new Set([
   'phi_vault_id',
 ]);
 
+const PHI_VAULT_TOKEN_REGEX = /phi:vault(?::[A-Z_]+)?:([0-9a-f]{24})/g;
+
+function collectVaultIdsFromValue(
+  value: unknown,
+  collector: Set<string>,
+  depth = 0
+): void {
+  if (value === null || value === undefined || depth > 8) {
+    return;
+  }
+
+  if (typeof value === 'string') {
+    for (const match of value.matchAll(PHI_VAULT_TOKEN_REGEX)) {
+      const id = match[1];
+      if (id) {
+        collector.add(id);
+      }
+    }
+    return;
+  }
+
+  if (Array.isArray(value)) {
+    value.forEach(item => collectVaultIdsFromValue(item, collector, depth + 1));
+    return;
+  }
+
+  if (typeof value === 'object') {
+    if (value instanceof Date || value instanceof ObjectId) {
+      return;
+    }
+    Object.values(value).forEach(child =>
+      collectVaultIdsFromValue(child, collector, depth + 1)
+    );
+  }
+}
+
 function extractRecordId(
   payload: Record<string, unknown>,
   recordType: string
@@ -72,57 +108,81 @@ export async function GET(
     
     const dependentObjectId = new ObjectId(dependentId);
     
-    const records = await db.collection(recordType)
+    const records = await db
+      .collection(recordType)
       .find({ dependent_id: dependentObjectId })
       .sort({ created_at: -1 })
       .toArray();
 
-    // Resolve PHI tokens for active_summaries
-    const phiMap: Record<string, string> = {};
-    if (recordType === 'active_summaries') {
-      const vaultIds = new Set<string>();
-      const tokenRegex = /phi:vault(?::[A-Z_]+)?:([0-9a-f]{24})/g;
+    const recordVaultIds = records.map(record => {
+      const ids = new Set<string>();
+      collectVaultIdsFromValue(record, ids);
+      return ids;
+    });
 
-      records.forEach(record => {
-        if (record.summary_text && typeof record.summary_text === 'string') {
-          const matches = record.summary_text.match(tokenRegex);
-          if (matches) {
-            matches.forEach((match: string) => {
-              const parts = match.split(':');
-              const id = parts[parts.length - 1];
-              if (id) {
-                vaultIds.add(id);
-              }
-            });
-          }
+    const allVaultIds = new Set<string>();
+    recordVaultIds.forEach(set => {
+      set.forEach(id => allVaultIds.add(id));
+    });
+
+    const resolvedVaultEntries = new Map<string, string>();
+    if (allVaultIds.size > 0) {
+      const vaultEntries = await db
+        .collection('phi_vault_entries')
+        .find({
+          _id: { $in: Array.from(allVaultIds).map(id => new ObjectId(id)) },
+        })
+        .toArray();
+
+      vaultEntries.forEach(entry => {
+        resolvedVaultEntries.set(entry._id.toString(), entry.value);
+      });
+    }
+
+    const recordsWithIds = records.map((record, index) => {
+      const recordPhiResolved: Record<string, string> = {};
+      recordVaultIds[index].forEach(id => {
+        const resolved = resolvedVaultEntries.get(id);
+        if (resolved) {
+          recordPhiResolved[id] = resolved;
         }
       });
 
-      if (vaultIds.size > 0) {
-        const vaultEntries = await db.collection('phi_vault_entries')
-          .find({ _id: { $in: Array.from(vaultIds).map(id => new ObjectId(id)) } })
-          .toArray();
-        
-        vaultEntries.forEach(entry => {
-          phiMap[entry._id.toString()] = entry.value;
-        });
-      }
-    }
-    
-    const recordsWithIds = records.map(record => ({
-      ...record,
-      _id: record._id.toString(),
-      dependent_id: record.dependent_id?.toString ? record.dependent_id.toString() : record.dependent_id,
-      provider_id: record.provider_id?.toString ? record.provider_id.toString() : record.provider_id,
-      prescriber_id: record.prescriber_id?.toString ? record.prescriber_id.toString() : record.prescriber_id,
-      ordered_by: record.ordered_by?.toString ? record.ordered_by.toString() : record.ordered_by,
-      diagnosed_by: record.diagnosed_by?.toString ? record.diagnosed_by.toString() : record.diagnosed_by,
-      verified_by: record.verified_by?.toString ? record.verified_by.toString() : record.verified_by,
-      recorded_by: record.recorded_by?.toString ? record.recorded_by.toString() : record.recorded_by,
-      performed_by: record.performed_by?.toString ? record.performed_by.toString() : record.performed_by,
-      administered_by: record.administered_by?.toString ? record.administered_by.toString() : record.administered_by,
-      _phi_resolved: recordType === 'active_summaries' ? phiMap : undefined,
-    }));
+      return {
+        ...record,
+        _id: record._id.toString(),
+        dependent_id: record.dependent_id?.toString
+          ? record.dependent_id.toString()
+          : record.dependent_id,
+        provider_id: record.provider_id?.toString
+          ? record.provider_id.toString()
+          : record.provider_id,
+        prescriber_id: record.prescriber_id?.toString
+          ? record.prescriber_id.toString()
+          : record.prescriber_id,
+        ordered_by: record.ordered_by?.toString
+          ? record.ordered_by.toString()
+          : record.ordered_by,
+        diagnosed_by: record.diagnosed_by?.toString
+          ? record.diagnosed_by.toString()
+          : record.diagnosed_by,
+        verified_by: record.verified_by?.toString
+          ? record.verified_by.toString()
+          : record.verified_by,
+        recorded_by: record.recorded_by?.toString
+          ? record.recorded_by.toString()
+          : record.recorded_by,
+        performed_by: record.performed_by?.toString
+          ? record.performed_by.toString()
+          : record.performed_by,
+        administered_by: record.administered_by?.toString
+          ? record.administered_by.toString()
+          : record.administered_by,
+        ...(Object.keys(recordPhiResolved).length > 0
+          ? { _phi_resolved: recordPhiResolved }
+          : {}),
+      };
+    });
     
     return NextResponse.json(recordsWithIds);
   } catch (error) {
