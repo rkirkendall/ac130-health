@@ -1,23 +1,13 @@
-import path from 'node:path';
 import { test, expect } from '@playwright/test';
-import { resetTestDatabase } from '../utils/db';
 import { listDependents } from '../utils/api';
-
-const SCENARIO_ONE_SEED = path.join(
-  'src',
-  '@tests',
-  'llm-smoke',
-  'chat-tests',
-  'scenario-one',
-  'seed.json'
-);
+import { seedScenarioOne, BASE_URL } from './helpers';
 
 test.beforeEach(async () => {
-  await resetTestDatabase({ seedPath: SCENARIO_ONE_SEED });
+  await seedScenarioOne();
 });
 
 test('test', async ({ page }) => {
-  await page.goto('http://127.0.0.1:3001/t');
+  await page.goto(BASE_URL, { waitUntil: 'networkidle' });
   await page.getByRole('button', { name: 'Add Profile' }).click();
   await page.getByRole('textbox', { name: 'Relationship Identifier' }).fill('new test');
   await page.getByRole('textbox', { name: 'Legal First Name' }).click();

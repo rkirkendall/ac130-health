@@ -1398,6 +1398,7 @@ const renderProfile = () => {
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label="Edit record"
                               onClick={() => openEditForm(record)}
                               disabled={crudLoading}
                             >
@@ -1406,6 +1407,7 @@ const renderProfile = () => {
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label="Delete record"
                               onClick={() => openDeleteConfirmation(record)}
                               disabled={crudLoading}
                               className="text-red-600 hover:text-red-700 hover:bg-red-50"
@@ -1508,6 +1510,7 @@ const renderProfile = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                aria-label="Edit record"
                                 onClick={() => openEditForm(record)}
                                 disabled={crudLoading}
                               >
@@ -1516,6 +1519,7 @@ const renderProfile = () => {
                               <Button
                                 variant="ghost"
                                 size="sm"
+                                aria-label="Delete record"
                                 onClick={() => openDeleteConfirmation(record)}
                                 disabled={crudLoading}
                                 className="text-red-600 hover:text-red-700 hover:bg-red-50"
